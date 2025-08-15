@@ -145,3 +145,5 @@ Now open **[http://localhost:3000](http://localhost:3000)** in your browser.
 * Ensure you have **Keycloak** running locally at `http://localhost:8080` with the configured realm and client IDs.
 * Make sure **MongoDB** is accessible via the provided `MONGODB_URI`.
 * Do **not** commit `.env` files. They contain sensitive information.
+
+* For Detailled Documentation: https://docs.google.com/document/d/1yqUK_n2C697JbYGMlQrp9GiEP_JrYefAbc-JMh5Dy_o/edit?usp=sharing
