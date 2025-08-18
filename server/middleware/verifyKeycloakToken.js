@@ -1,26 +1,61 @@
+// server/middleware/verifyKeycloakToken.js
 import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const client = jwksClient({
-  jwksUri: `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/certs`,
+  jwksUri: process.env.KEYCLOAK_JWKS_URI,
 });
 
+console.log(
+  "JWKS URI:",
+  `${process.env.KEYCLOAK_AUTH_SERVER_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/certs`
+);
+
+// Get signing key dynamically
 function getKey(header, callback) {
-  client.getSigningKey(header.kid, (err, key) => {
-    if (err) return callback(err);
+  client.getSigningKey(header.kid, function (err, key) {
+    if (err) {
+      console.error("Error getting signing key", err);
+      return callback(err);
+    }
     const signingKey = key.getPublicKey();
     callback(null, signingKey);
   });
 }
 
 export function verifyKeycloakToken(req, res, next) {
-  const auth = req.headers.authorization || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) return res.status(401).json({ error: "No token" });
+  const authHeader = req.headers["authorization"];
+  if (!authHeader) {
+    console.error("No Authorization header found");
+    return res.status(401).json({ error: "No token provided" });
+  }
 
-  jwt.verify(token, getKey, { algorithms: ["RS256"], issuer: process.env.KEYCLOAK_ISSUER }, (err, decoded) => {
-    if (err) return res.status(401).json({ error: "Invalid token" });
-    req.user = decoded; // contains roles in decoded.realm_access.roles
-    next();
-  });
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    console.error("Malformed Authorization header");
+    return res.status(401).json({ error: "Invalid token format" });
+  }
+
+  jwt.verify(
+    token,
+    getKey,
+    {
+      audience: process.env.KEYCLOAK_CLIENT_ID,
+      issuer: `${process.env.KEYCLOAK_AUTH_SERVER_URL}/realms/${process.env.KEYCLOAK_REALM}`,
+      algorithms: ["RS256"],
+    },
+    (err, decoded) => {
+      if (err) {
+        console.error("JWT verification failed", err.message);
+        return res.status(403).json({ error: "Invalid or expired token" });
+      }
+
+      console.log("✅ Token verified, decoded payload:", decoded);
+      req.user = decoded;
+      next();
+    }
+  );
 }

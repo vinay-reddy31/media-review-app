@@ -10,7 +10,8 @@ export default function Home() {
   useEffect(() => {
     if (status === "authenticated") {
       if (session.role === "owner") router.replace("/dashboard/owner");
-      else if (session.role === "reviewer") router.replace("/dashboard/reviewer");
+      else if (session.role === "reviewer")
+        router.replace("/dashboard/reviewer");
       else router.replace("/dashboard/viewer");
     }
   }, [status, session, router]);
@@ -30,7 +31,7 @@ export default function Home() {
         ) : status === "authenticated" ? (
           <div className="flex gap-4 justify-center">
             <button
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={() => signOut({ callbackUrl: "/", redirect: true })}
               className="px-6 py-3 bg-red-500 hover:bg-red-600 rounded-lg font-semibold transition"
             >
               Logout
