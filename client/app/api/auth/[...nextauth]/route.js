@@ -40,43 +40,75 @@ async function refreshAccessToken(token) {
 /**
  * Extract roles from Keycloak profile or token
  */
-function extractRoles(profile, token) {
-  const roles = [];
+function base64UrlDecode(input) {
+  try {
+    const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return Buffer.from(padded, "base64").toString("utf8");
+  } catch (e) {
+    return "";
+  }
+}
 
-  // Realm roles
+function decodeJwtPayload(jwtString) {
+  if (!jwtString || typeof jwtString !== "string" || !jwtString.includes(".")) {
+    return null;
+  }
+  try {
+    const [, payload] = jwtString.split(".");
+    const json = base64UrlDecode(payload);
+    return JSON.parse(json);
+  } catch (e) {
+    console.warn("[Roles Debug] Failed to decode JWT payload:", e?.message);
+    return null;
+  }
+}
+
+function extractRoles(profile, tokenOrAccount) {
+  const roles = new Set();
+
+  // 1) From profile (userinfo)
   if (profile?.realm_access?.roles) {
-    roles.push(...profile.realm_access.roles);
-  } else if (token?.realm_access?.roles) {
-    roles.push(...token.realm_access.roles);
-  } else {
-    console.warn("[Roles Debug] No realm roles found!");
+    profile.realm_access.roles.forEach((r) => roles.add(r));
+  }
+  // Collect roles from ALL clients in resource_access, not just the app client
+  if (profile?.resource_access) {
+    Object.values(profile.resource_access).forEach((entry) => {
+      (entry?.roles || []).forEach((r) => roles.add(r));
+    });
   }
 
-  // Client roles
-  const resourceAccess = profile?.resource_access || token?.resource_access;
-  if (resourceAccess) {
-    const clientRoles =
-      resourceAccess[process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID];
-    if (clientRoles?.roles) {
-      roles.push(...clientRoles.roles);
-    } else {
-      console.warn(
-        `[Roles Debug] No client roles found for client: ${process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID}`
-      );
+  // 2) From decoded tokens (id_token/access_token)
+  const maybeTokens = tokenOrAccount || {};
+  const candidateJwtStrings = [];
+  if (typeof maybeTokens === "string") {
+    candidateJwtStrings.push(maybeTokens);
+  } else {
+    if (maybeTokens.id_token) candidateJwtStrings.push(maybeTokens.id_token);
+    if (maybeTokens.access_token) candidateJwtStrings.push(maybeTokens.access_token);
+  }
+
+  for (const jwtString of candidateJwtStrings) {
+    const decoded = decodeJwtPayload(jwtString);
+    if (!decoded) continue;
+    if (decoded.realm_access?.roles) {
+      decoded.realm_access.roles.forEach((r) => roles.add(r));
     }
-  } else {
-    console.warn(
-      "[Roles Debug] No resource_access object found in profile/token!"
-    );
+    // Collect roles from ALL clients present in the token
+    if (decoded.resource_access) {
+      Object.values(decoded.resource_access).forEach((entry) => {
+        (entry?.roles || []).forEach((r) => roles.add(r));
+      });
+    }
   }
 
-  if (roles.length === 0) {
+  const rolesArray = Array.from(roles);
+  if (rolesArray.length === 0) {
     console.warn("[Roles Debug] No roles extracted at all!");
   } else {
-    console.log("[Roles Debug] Extracted roles:", roles);
+    console.log("[Roles Debug] Extracted roles:", rolesArray);
   }
-
-  return roles;
+  return rolesArray;
 }
 
 export const authOptions = {
@@ -115,6 +147,7 @@ export const authOptions = {
         token.roles = [];
         token.accessToken = null;
         token.refreshToken = null;
+        token.idToken = null;
         token.accessTokenExpires = 0;
         return token;
       }
@@ -122,10 +155,23 @@ export const authOptions = {
       if (account && profile) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
+        token.idToken = account.id_token;
         token.accessTokenExpires = account.expires_at * 1000;
 
+        // Extract roles from profile and by decoding id/access tokens as fallback
         token.roles = extractRoles(profile, account);
         console.log("[JWT Callback] token after storing roles:", token);
+        // Fire-and-forget server-side sync so a first-time user gets org/client/roles
+        try {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'http://localhost:5000';
+          fetch(`${apiUrl}/users/sync`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${account.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          }).catch(() => {});
+        } catch (_) {}
         return token;
       }
 
@@ -134,17 +180,20 @@ export const authOptions = {
         return token;
       }
 
-      const refreshedToken = await refreshAccessToken(token);
-      console.log("[JWT Callback] token after refresh:", refreshedToken);
-      return refreshedToken;
+      console.log("[JWT Callback] token expired, refreshing access token");
+      return await refreshAccessToken(token);
     },
 
     async session({ session, token }) {
       console.log("[Session Callback] token:", token);
       session.accessToken = token.accessToken;
+      session.refreshToken = token.refreshToken;
+      session.idToken = token.idToken;
       session.error = token.error;
       session.roles = token.roles || [];
       console.log("[Session Callback] session.roles:", session.roles);
+      // If first-time login and no roles yet, hint owner routing on client
+      session.isFirstLogin = (session.roles.length === 0);
       return session;
     },
   },

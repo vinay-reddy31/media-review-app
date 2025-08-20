@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import MediaCard from "@/components/MediaCard";
 import LogoutButton from "@/components/LogoutButton";
+import UserInfo from "@/components/UserInfo";
 import { createSocket } from "@/components/createSocket";
 
 export default function ViewerDashboard() {
@@ -98,7 +99,10 @@ export default function ViewerDashboard() {
               Browse and view media content. Read-only access for content consumption.
             </p>
           </div>
-          <LogoutButton />
+          <div className="flex items-center space-x-4">
+            <UserInfo />
+            <LogoutButton />
+          </div>
         </div>
           
           {/* Read-Only Status */}

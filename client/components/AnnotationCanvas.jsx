@@ -1,351 +1,192 @@
-// client/components/AnnotationCanvas.jsx
 "use client";
-import React, { useEffect, useRef, useState } from "react";
 
-export default function AnnotationCanvas({ socket, mediaId, playerId, videoRef, user, userRole = "owner" }) {
-  const canvasRef = useRef(null);
-  const [annotations, setAnnotations] = useState([]);
-  const [showTextInput, setShowTextInput] = useState(false);
-  const [textInput, setTextInput] = useState("");
-  const [clickPosition, setClickPosition] = useState(null);
-  const [color, setColor] = useState("#3B82F6"); // Blue color like Loom
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-  // Check if user can annotate
-  const canAnnotate = userRole !== "viewer";
+/**
+ * Enhanced annotation overlay with text input modal
+ * - Owners/Reviewers: click to show text input, then save annotation
+ * - Viewers: read-only markers
+ * - Subscribes to `existingAnnotations`, `annotationAdded`, `annotationsCleared`.
+ */
+export default function AnnotationCanvas({ socket, mediaId, playerId, videoRef, user, userRole, isVideo = false }) {
+	const containerRef = useRef(null);
+	const [annotations, setAnnotations] = useState([]);
+	const [showTextInput, setShowTextInput] = useState(false);
+	const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
+	const [annotationText, setAnnotationText] = useState("");
 
-  // Initial setup & resize
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+	const canAnnotate = useMemo(() => userRole === "owner" || userRole === "reviewer", [userRole]);
 
-    const resize = () => {
-      const parent = canvas.parentElement;
-      if (parent) {
-        const rect = parent.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-        console.log(`📐 Canvas resized to: ${rect.width}x${rect.height}`);
-        redrawAnnotations();
-      }
-    };
-    
-    // Initial resize
-    resize();
-    
-    // Resize on window resize
-    window.addEventListener("resize", resize);
-    
-    // Also resize when parent changes
-    const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(canvas.parentElement);
-    
-    return () => {
-      window.removeEventListener("resize", resize);
-      resizeObserver.disconnect();
-    };
-  }, []);
+	useEffect(() => {
+		if (!socket) return;
 
-  // Socket events
-  useEffect(() => {
-    if (!socket) return;
+		const handleExisting = (items) => {
+			if (!Array.isArray(items)) return;
+			const filtered = items.filter((a) => String(a.mediaId) === String(mediaId));
+			setAnnotations(filtered);
+		};
 
-    socket.on("annotationAdded", (ann) => {
-      console.log("✅ Received annotation:", ann);
-      setAnnotations((prev) => [...prev, ann]);
-      drawAnnotation(ann);
-    });
+		const handleAdded = (annotation) => {
+			if (String(annotation.mediaId) !== String(mediaId)) return;
+			setAnnotations((prev) => [...prev, annotation]);
+		};
 
-    socket.on("annotationsCleared", () => {
-      console.log("🗑️ Annotations cleared");
-      setAnnotations([]);
-      clearCanvas();
-    });
+		const handleCleared = () => setAnnotations([]);
 
-    socket.on("existingAnnotations", (existingAnns) => {
-      console.log("📥 Loading existing annotations:", existingAnns);
-      setAnnotations(existingAnns || []);
-      clearCanvas();
-      if (existingAnns && existingAnns.length > 0) {
-        existingAnns.forEach(ann => drawAnnotation(ann));
-      }
-    });
+		socket.on("existingAnnotations", handleExisting);
+		socket.on("annotationAdded", handleAdded);
+		socket.on("annotationsCleared", handleCleared);
 
-    return () => {
-      socket.off("annotationAdded");
-      socket.off("annotationsCleared");
-      socket.off("existingAnnotations");
-    };
-  }, [socket]);
+		return () => {
+			socket.off("existingAnnotations", handleExisting);
+			socket.off("annotationAdded", handleAdded);
+			socket.off("annotationsCleared", handleCleared);
+		};
+	}, [socket, mediaId]);
 
-  // Helpers
-  const getCtx = () => canvasRef.current?.getContext("2d");
-  const clearCanvas = () => {
-    const ctx = getCtx();
-    if (ctx) {
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      console.log("🧹 Canvas cleared");
-    }
-  };
-  const redrawAnnotations = () => {
-    clearCanvas();
-    annotations.forEach((ann) => drawAnnotation(ann));
-    console.log(`🔄 Redrew ${annotations.length} annotations`);
-  };
+	const getRelativePosition = useCallback((event) => {
+		const container = containerRef.current;
+		if (!container) return { x: 0, y: 0 };
+		const rect = container.getBoundingClientRect();
+		const x = (event.clientX - rect.left) / rect.width;
+		const y = (event.clientY - rect.top) / rect.height;
+		return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+	}, []);
 
-  // Drawing functions - Draw blue dots with text like Loom
-  const drawAnnotation = (ann) => {
-    const ctx = getCtx();
-    if (!ctx || !ann.data) {
-      console.warn("⚠️ Cannot draw annotation:", ann);
-      return;
-    }
+	const handleClick = useCallback(
+		(event) => {
+			if (!canAnnotate || !socket) return;
+			
+			// Check if clicking on video controls or bottom area (play button, sound, progress bar, etc.)
+			const target = event.target;
+			const rect = containerRef.current?.getBoundingClientRect();
+			if (!rect) return;
+			
+			// Calculate if click is in the bottom 80px (video controls area)
+			const clickY = event.clientY - rect.top;
+			const isInControlsArea = clickY > (rect.height - 80);
+			
+			if (target.tagName === 'BUTTON' || 
+				target.closest('button') || 
+				target.closest('.video-controls') || 
+				target.closest('video') ||
+				isInControlsArea) {
+				return; // Don't show annotation modal for video controls
+			}
 
-    const { position, text, color: annColor } = ann.data;
-    if (!position) {
-      console.warn("⚠️ No position data for annotation:", ann);
-      return;
-    }
+			const { x, y } = getRelativePosition(event);
+			setClickPosition({ x, y });
+			setShowTextInput(true);
+		},
+		[canAnnotate, socket, getRelativePosition]
+	);
 
-    console.log(`🎨 Drawing annotation at (${position.x}, ${position.y}) with text: "${text}"`);
+	const handleSaveAnnotation = useCallback(() => {
+		if (!annotationText.trim() || !socket) return;
 
-    // Draw blue dot (like Loom)
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, 8, 0, 2 * Math.PI);
-    ctx.fillStyle = annColor || color;
-    ctx.fill();
-    
-    // Add white border for better visibility
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+		const timeInMedia = videoRef?.current?.currentTime ?? 0;
+		const payload = {
+			mediaId: String(mediaId),
+			text: annotationText.trim(),
+			coordinates: clickPosition,
+			timeInMedia,
+			userName: user?.name || user?.email || "Anonymous",
+		};
 
-    // Draw text annotation if it exists
-    if (text) {
-      ctx.font = "14px Arial";
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = "#000000";
-      ctx.lineWidth = 3;
-      
-      // Draw text with black outline for better visibility
-      ctx.strokeText(text, position.x + 15, position.y + 5);
-      ctx.fillText(text, position.x + 15, position.y + 5);
-    }
-  };
+		console.log("Sending annotation payload:", payload);
+		socket.emit("newAnnotation", payload);
+		setShowTextInput(false);
+		setAnnotationText("");
+	}, [annotationText, socket, mediaId, clickPosition, videoRef, user]);
 
-  const getCoordinates = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    console.log(`📍 Raw click: (${e.clientX}, ${e.clientY}), Canvas rect: (${rect.left}, ${rect.top}), Calculated: (${x}, ${y})`);
-    return { x, y };
-  };
+	const handleCancel = useCallback(() => {
+		setShowTextInput(false);
+		setAnnotationText("");
+	}, []);
 
-  // Click handler for adding annotations
-  const handleCanvasClick = (e) => {
-    console.log("🎯 Canvas click event triggered");
-    
-    if (!canAnnotate) {
-      console.log("🚫 User cannot annotate (viewer role)");
-      return;
-    }
+	// Render markers using percentage positions so they scale with the media element
+	return (
+		<>
+			<div
+				ref={containerRef}
+				className="absolute left-0 right-0 top-0 select-none z-10"
+				style={{ cursor: canAnnotate ? "crosshair" : "default", pointerEvents: "auto", bottom: isVideo ? "80px" : 0 }}
+				onClick={handleClick}
+			>
+				{annotations.map((a) => {
+					const pos = a?.coordinates || a?.data?.position;
+					if (!pos) return null;
+					const left = `${(pos.x || 0) * 100}%`;
+					const top = `${(pos.y || 0) * 100}%`;
+					return (
+						<div
+							key={a._id || `${a.mediaId}-${a.createdAt || Math.random()}`}
+							className="absolute -translate-x-1/2 -translate-y-1/2 group"
+							style={{ left, top }}
+						>
+							<span className="inline-block h-3 w-3 rounded-full bg-blue-500 ring-2 ring-white shadow cursor-pointer" />
+							{/* Tooltip showing annotation text and username */}
+							<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black/90 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 max-w-xs">
+								<div className="font-semibold text-blue-300 mb-1">
+									{a.username || a.userName || "Anonymous"}
+								</div>
+								<div className="text-white">
+									{a.text || "Annotation"}
+								</div>
+								<div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-black/90"></div>
+							</div>
+						</div>
+					);
+				})}
+			</div>
 
-    // Prevent the event from bubbling to the video player
-    e.preventDefault();
-    e.stopPropagation();
-
-    const coords = getCoordinates(e);
-    console.log(`🖱️ Click detected at coordinates: (${coords.x}, ${coords.y})`);
-    setClickPosition(coords);
-    setShowTextInput(true);
-  };
-
-  // Mouse down handler to prevent video interaction
-  const handleMouseDown = (e) => {
-    if (canAnnotate) {
-      console.log("🖱️ Mouse down on canvas");
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  };
-
-  // Mouse up handler to prevent video interaction
-  const handleMouseUp = (e) => {
-    if (canAnnotate) {
-      console.log("🖱️ Mouse up on canvas");
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  };
-
-  const handleTextSubmit = () => {
-    if (!textInput.trim() || !clickPosition) {
-      console.log("⚠️ Cannot submit: missing text or position");
-      return;
-    }
-
-    const player = document.getElementById(playerId);
-    const timeInMedia = player?.currentTime ? Math.floor(player.currentTime) : 0;
-
-    console.log(`📝 Creating annotation at time ${timeInMedia}s, position (${clickPosition.x}, ${clickPosition.y})`);
-
-    const annotationData = {
-      type: "text",
-      text: textInput,
-      position: clickPosition,
-      color: color
-    };
-
-    const payload = {
-      mediaId,
-      type: "text",
-      data: annotationData,
-      timeInMedia,
-      userName: user?.name || user?.username || "Anonymous",
-    };
-
-    console.log("📤 Sending annotation payload:", payload);
-
-    if (socket) {
-      socket.emit("newAnnotation", payload);
-      console.log("✅ Annotation sent via socket");
-    } else {
-      console.error("❌ No socket connection available");
-    }
-    
-    setTextInput("");
-    setClickPosition(null);
-    setShowTextInput(false);
-  };
-
-  const handleTextCancel = () => {
-    console.log("❌ Annotation cancelled");
-    setTextInput("");
-    setClickPosition(null);
-    setShowTextInput(false);
-  };
-
-  const handleClearAll = () => {
-    console.log("🗑️ Clearing all annotations");
-    setAnnotations([]);
-    clearCanvas();
-    if (socket) {
-      socket.emit("clearAnnotations", { mediaId });
-      console.log("✅ Clear request sent via socket");
-    }
-  };
-
-  return (
-    <div className="relative w-full h-full">
-      {/* Toolbar - Only show if user can annotate */}
-      {canAnnotate && (
-        <div className="absolute top-2 left-2 z-20 bg-black/50 text-white rounded p-2 flex gap-2 items-center">
-          <span className="text-sm">📝 Click anywhere to add annotation</span>
-          <input 
-            type="color" 
-            value={color} 
-            onChange={(e) => setColor(e.target.value)} 
-            className="w-8 h-8 rounded cursor-pointer"
-            title="Annotation color"
-          />
-          <button 
-            onClick={handleClearAll}
-            className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition-colors"
-            title="Clear all annotations"
-          >
-            Clear All
-          </button>
-        </div>
-      )}
-
-      {/* Read-only indicator for viewers */}
-      {!canAnnotate && (
-        <div className="absolute top-2 left-2 z-20 bg-gray-500/80 text-white rounded p-2">
-          <span className="text-sm">👁️ Read-only mode</span>
-        </div>
-      )}
-
-      {/* Text Input Modal */}
-      {showTextInput && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-30">
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-600 min-w-[300px] shadow-xl">
-            <h3 className="text-white font-semibold mb-3">Add Annotation</h3>
-            <div className="mb-3 text-sm text-gray-300">
-              Click at position: ({Math.round(clickPosition?.x)}, {Math.round(clickPosition?.y)})
-            </div>
-            <textarea
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              placeholder="Enter your annotation text..."
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded p-2 mb-3 resize-none"
-              rows={3}
-              autoFocus
-              onKeyPress={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleTextSubmit();
-                }
-              }}
-            />
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={handleTextCancel}
-                className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleTextSubmit}
-                disabled={!textInput.trim()}
-                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-500 transition-colors"
-              >
-                Add Annotation
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Debug info */}
-      <div className="absolute top-2 right-2 z-20 bg-black/50 text-white rounded p-2 text-xs">
-        <div>Annotations: {annotations.length}</div>
-        <div>Can annotate: {canAnnotate ? "Yes" : "No"}</div>
-        <div>Color: {color}</div>
-        <div>Canvas size: {canvasRef.current?.width || 0} x {canvasRef.current?.height || 0}</div>
-      </div>
-
-      {/* Test click area - only show in development */}
-      {process.env.NODE_ENV === 'development' && canAnnotate && (
-        <div className="absolute top-2 left-2 z-20 bg-red-500/50 text-white rounded p-2 text-xs">
-          <div>🧪 Test Click Area</div>
-          <button 
-            onClick={() => {
-              console.log("🧪 Test button clicked");
-              setClickPosition({ x: 100, y: 100 });
-              setShowTextInput(true);
-            }}
-            className="bg-red-600 px-2 py-1 rounded text-xs mt-1"
-          >
-            Test Annotation
-          </button>
-        </div>
-      )}
-
-      {/* Canvas */}
-      <canvas
-        ref={canvasRef}
-        className={`absolute top-0 left-0 w-full h-full z-10 ${canAnnotate ? 'cursor-crosshair' : 'cursor-default'}`}
-        onClick={handleCanvasClick}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onPointerDown={handleMouseDown}
-        onPointerUp={handleMouseUp}
-        style={{
-          pointerEvents: canAnnotate ? 'auto' : 'none',
-          touchAction: canAnnotate ? 'none' : 'auto',
-          border: canAnnotate ? '2px solid red' : 'none' // Visual indicator
-        }}
-        title={canAnnotate ? "Click to add annotation" : "Read-only mode"}
-      />
-    </div>
-  );
+			{/* Text Input Modal */}
+			{showTextInput && (
+				<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+					<div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+						<h3 className="text-lg font-semibold mb-4 text-black">Add Annotation</h3>
+						<div className="space-y-4">
+							<div>
+								<label className="block text-sm font-medium mb-2 text-black">Annotation Text</label>
+								<textarea
+									value={annotationText}
+									onChange={(e) => setAnnotationText(e.target.value)}
+									placeholder="Enter your annotation..."
+									className="w-full border rounded-lg px-3 py-2 text-black resize-none"
+									rows={3}
+									autoFocus
+									onKeyDown={(e) => {
+										if (e.key === 'Enter' && !e.shiftKey) {
+											e.preventDefault();
+											handleSaveAnnotation();
+										}
+										if (e.key === 'Escape') {
+											handleCancel();
+										}
+									}}
+								/>
+							</div>
+							<div className="flex gap-3">
+								<button
+									onClick={handleSaveAnnotation}
+									disabled={!annotationText.trim()}
+									className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg transition-colors"
+								>
+									Save
+								</button>
+								<button
+									onClick={handleCancel}
+									className="flex-1 px-4 py-2 rounded-lg border text-black hover:bg-gray-50"
+								>
+									Cancel
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+		</>
+	);
 }
+
+

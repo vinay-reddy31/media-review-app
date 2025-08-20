@@ -8,13 +8,21 @@ export default function LogoutButton({ className = "" }) {
 
   const handleLogout = async () => {
     try {
-      // Sign out from NextAuth (this will clear all tokens)
-      await signOut({
-        callbackUrl: "/",
-        redirect: false,
+      // Ask server for Keycloak logout URL
+      const logoutResponse = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
-      // Clear any additional tokens from localStorage if they exist
+      let logoutUrl = '/';
+      if (logoutResponse.ok) {
+        const data = await logoutResponse.json();
+        logoutUrl = data.logoutUrl || '/';
+      }
+
+      // Clear local storage/session caches
       if (typeof window !== "undefined") {
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
@@ -22,12 +30,16 @@ export default function LogoutButton({ className = "" }) {
         sessionStorage.clear();
       }
 
-      // Navigate to home page
-      router.push("/");
+      // Clear NextAuth session but do not redirect yet
+      await signOut({ redirect: false });
+
+      // Hard redirect to Keycloak end-session endpoint
+      window.location.href = logoutUrl;
     } catch (error) {
       console.error("Logout error:", error);
-      // Force redirect even if there's an error
-      router.push("/");
+      try {
+        await signOut({ callbackUrl: "/", redirect: true });
+      } catch (_) {}
     }
   };
 

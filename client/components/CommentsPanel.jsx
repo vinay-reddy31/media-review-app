@@ -108,6 +108,27 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
     };
   }, [socket, mediaId]);
 
+  // Ensure initial load via REST in case we miss the socket 'existingComments' event
+  useEffect(() => {
+    const load = async () => {
+      if (!session?.accessToken || !mediaId) return;
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/comments/${mediaId}`, {
+          headers: { Authorization: `Bearer ${session.accessToken}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setComments(data || []);
+        }
+      } catch (e) {
+        console.error("Failed to fetch initial comments", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [session?.accessToken, mediaId]);
+
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

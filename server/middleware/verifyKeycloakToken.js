@@ -39,11 +39,17 @@ export function verifyKeycloakToken(req, res, next) {
     return res.status(401).json({ error: "Invalid token format" });
   }
 
+  const allowedAudiences = [
+    process.env.KEYCLOAK_CLIENT_ID,
+    process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID,
+    'account',
+  ].filter(Boolean);
+
   jwt.verify(
     token,
     getKey,
     {
-      audience: process.env.KEYCLOAK_CLIENT_ID,
+      audience: allowedAudiences,
       issuer: `${process.env.KEYCLOAK_AUTH_SERVER_URL}/realms/${process.env.KEYCLOAK_REALM}`,
       algorithms: ["RS256"],
     },

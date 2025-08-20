@@ -14,6 +14,7 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT,
     dialect: "postgres",
     logging: false,
+    // Do not set global underscored to avoid breaking existing tables.
   }
 );
 
@@ -21,7 +22,8 @@ const sequelize = new Sequelize(
 export const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    await sequelize.sync();
+    // Reconcile schema differences (safe for dev; use migrations for prod)
+    await sequelize.sync({ alter: true });
     console.log("✅ PostgreSQL connected & synced");
   } catch (error) {
     console.error("❌ PostgreSQL connection failed:", error);
