@@ -8,11 +8,16 @@ import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
 import mediaRoutes from "./routes/media.js";
 import commentRoutes from "./routes/comments.js";
+import inviteRoutes from "./routes/invites.js";
+import organizationRoutes from "./routes/organizations.js";
+import userRoutes from "./routes/users.js";
 import { verifyKeycloakToken } from "./middleware/verifyKeycloakToken.js";
 import { connectDB } from "./db.js";
 import { connectMongoDB } from "./db.js";
 import Annotation from "./models/Annotation.js";
 import Comment from "./models/Comment.js";
+import { getUserEffectiveRoleForMedia, hasCapability } from "./utils/accessControl.js";
+import annotationRoutes from "./routes/annotations.js";
 
 dotenv.config();
 
@@ -33,6 +38,10 @@ app.use("/uploads", express.static("uploads"));
 // Routes
 app.use("/media", mediaRoutes);
 app.use("/comments", commentRoutes);
+app.use("/annotations", annotationRoutes);
+app.use("/invites", inviteRoutes);
+app.use("/organizations", verifyKeycloakToken, organizationRoutes);
+app.use("/users", verifyKeycloakToken, userRoutes);
 
 // Socket authentication function
 const verifySocketToken = (token) => {
@@ -56,7 +65,7 @@ const verifySocketToken = (token) => {
       token,
       getKey,
       {
-        audience: process.env.KEYCLOAK_CLIENT_ID,
+        audience: [process.env.KEYCLOAK_CLIENT_ID, "account"].filter(Boolean),
         issuer: `${process.env.KEYCLOAK_AUTH_SERVER_URL}/realms/${process.env.KEYCLOAK_REALM}`,
         algorithms: ["RS256"],
       },
@@ -94,7 +103,12 @@ io.on("connection", (socket) => {
   console.log("User connected:", socket.user?.sub);
 
   // Join media room
-  socket.on("joinMediaRoom", (mediaId) => {
+  socket.on("joinMediaRoom", async (mediaId) => {
+    const { role } = await getUserEffectiveRoleForMedia(socket.user, mediaId);
+    if (!hasCapability(role, "view")) {
+      socket.emit("accessDenied", { reason: "No access to this media" });
+      return;
+    }
     socket.join(mediaId);
     console.log(`User ${socket.user?.sub} joined media room: ${mediaId}`);
     
@@ -146,18 +160,28 @@ io.on("connection", (socket) => {
   // Handle new annotations
   socket.on("newAnnotation", async (data) => {
     try {
+      const { role } = await getUserEffectiveRoleForMedia(socket.user, data.mediaId);
+      if (!hasCapability(role, "annotate")) {
+        socket.emit("accessDenied", { reason: "No annotate permission" });
+        return;
+      }
       console.log(`🎨 Creating new annotation for media: ${data.mediaId}`);
       console.log(`Annotation data received:`, data);
       console.log(`Current user data:`, socket.user);
       console.log(`User ID to save: ${socket.user?.sub}`);
       
+      // Map payload to Mongoose Annotation schema
+      // Schema expects: { mediaId, userId, username, type: 'point', coordinates: {x,y}, text, timestamp }
+      const coords = data.coordinates || data.data?.position || {};
+      const text = data.text || data.data?.text || "Annotation";
       const annotation = new Annotation({
-        mediaId: data.mediaId,
-        type: data.type,
-        data: data.data,
-        timeInMedia: data.timeInMedia,
+        mediaId: String(data.mediaId),
         userId: socket.user?.sub,
-        userName: data.userName || socket.user?.preferred_username || "Anonymous",
+        username: data.userName || socket.user?.preferred_username || "Anonymous",
+        type: "point",
+        coordinates: { x: Number(coords.x), y: Number(coords.y) },
+        text: text || "Annotation", // Ensure text is never empty
+        timestamp: typeof data.timeInMedia === "number" ? data.timeInMedia : 0,
       });
 
       console.log(`Annotation object before save:`, annotation);
@@ -181,6 +205,8 @@ io.on("connection", (socket) => {
   // Handle clearing annotations
   socket.on("clearAnnotations", async (data) => {
     try {
+      const { role } = await getUserEffectiveRoleForMedia(socket.user, data.mediaId);
+      if (role !== "owner") return;
       await Annotation.deleteMany({ mediaId: data.mediaId });
       io.to(data.mediaId).emit("annotationsCleared");
       console.log(`Annotations cleared for media ${data.mediaId} by ${socket.user?.sub}`);
@@ -192,6 +218,11 @@ io.on("connection", (socket) => {
   // Handle new comments - FIXED: Now properly saves to MongoDB
   socket.on("newComment", async (data) => {
     try {
+      const { role } = await getUserEffectiveRoleForMedia(socket.user, data.mediaId);
+      if (!hasCapability(role, "annotate")) {
+        socket.emit("accessDenied", { reason: "No comment permission" });
+        return;
+      }
       console.log(`Creating new comment for media: ${data.mediaId}`);
       console.log(`Current user data:`, socket.user);
       console.log(`User ID to save: ${socket.user?.sub}`);
@@ -245,7 +276,8 @@ io.on("connection", (socket) => {
 
       // Allow deletion if user is comment author OR if user is owner (using string comparison for safety)
       const isCommentAuthor = String(comment.userId) === String(socket.user?.sub);
-      const isOwner = socket.user?.realm_access?.roles?.includes('owner') || socket.user?.resource_access?.[process.env.KEYCLOAK_CLIENT_ID]?.roles?.includes('owner');
+      const allClientRoles = Object.values(socket.user?.resource_access || {}).flatMap((e) => e?.roles || []);
+      const isOwner = (socket.user?.realm_access?.roles || []).includes('owner') || allClientRoles.includes('owner');
       
       console.log(`Is comment author: ${isCommentAuthor}`);
       console.log(`Is owner: ${isOwner}`);

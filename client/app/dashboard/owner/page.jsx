@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import UploadForm from "@/components/UploadForm";
 import MediaCard from "@/components/MediaCard";
 import LogoutButton from "@/components/LogoutButton";
+import UserInfo from "@/components/UserInfo";
 
 export default function OwnerDashboard() {
   const { data: session, status } = useSession();
@@ -15,13 +16,26 @@ export default function OwnerDashboard() {
     if (status === "loading") return;
     if (!session?.accessToken) return;
 
-    // Fetch user's media
-    fetchMediaList();
+    // Ensure backend has created org/client/roles and DB mappings before loading
+    preSync().then(() => fetchMediaList());
   }, [session?.accessToken, status]);
+
+  const preSync = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      await fetch(`${apiUrl}/users/sync`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.accessToken}`, "Content-Type": "application/json" },
+      });
+    } catch (e) {
+      // best-effort
+    }
+  };
 
   const fetchMediaList = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/media/my-media`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/media/my-media`, {
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
       if (response.ok) {
@@ -65,7 +79,10 @@ export default function OwnerDashboard() {
               your workspace.
             </p>
           </div>
-          <LogoutButton />
+          <div className="flex items-center space-x-4">
+            <UserInfo />
+            <LogoutButton />
+          </div>
         </div>
 
         {/* Upload Section */}

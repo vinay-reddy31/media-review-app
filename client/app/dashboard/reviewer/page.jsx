@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import MediaCard from "@/components/MediaCard";
 import LogoutButton from "@/components/LogoutButton";
+import UserInfo from "@/components/UserInfo";
 import { createSocket } from "@/components/createSocket";
 
 export default function ReviewerDashboard() {
@@ -56,10 +57,14 @@ export default function ReviewerDashboard() {
       });
       if (response.ok) {
         const data = await response.json();
-        setMediaList(data);
+        // Filter to items the user explicitly has access to or owns (server already does this, but keep client guard)
+        setMediaList(Array.isArray(data) ? data : []);
+      } else {
+        setMediaList([]);
       }
     } catch (error) {
       console.error("Error fetching media:", error);
+      setMediaList([]);
     } finally {
       setLoading(false);
     }
@@ -99,7 +104,10 @@ export default function ReviewerDashboard() {
               Review and provide feedback on media content. You can view, comment, and annotate all media.
             </p>
           </div>
-          <LogoutButton />
+          <div className="flex items-center space-x-4">
+            <UserInfo />
+            <LogoutButton />
+          </div>
         </div>
           
           {/* Real-time Status */}

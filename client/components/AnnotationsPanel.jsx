@@ -1,176 +1,114 @@
-// client/components/AnnotationsPanel.jsx
 "use client";
-
-import React, { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 
 export default function AnnotationsPanel({ socket, mediaId, userRole = "owner", user }) {
   const [annotations, setAnnotations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const canClear = useMemo(() => userRole === "owner", [userRole]);
+  const { data: session } = useSession();
 
   useEffect(() => {
-    if (!socket) {
-      setLoading(false);
-      return;
-    }
+    if (!socket) return;
 
-    // Socket event listeners
-    socket.on("annotationAdded", (annotation) => {
-      console.log("✅ Annotation added:", annotation);
-      setAnnotations(prev => [...prev, annotation]);
-    });
+    const handleExisting = (items) => {
+      if (!Array.isArray(items)) return;
+      const filtered = items.filter((a) => String(a.mediaId) === String(mediaId));
+      setAnnotations(filtered);
+    };
 
-    socket.on("annotationsCleared", () => {
-      console.log("🗑️ Annotations cleared");
-      setAnnotations([]);
-    });
+    const handleAdded = (annotation) => {
+      if (String(annotation.mediaId) !== String(mediaId)) return;
+      setAnnotations((prev) => [...prev, annotation]);
+    };
 
-    socket.on("existingAnnotations", (existingAnnotations) => {
-      console.log("📥 Loading existing annotations:", existingAnnotations);
-      setAnnotations(existingAnnotations || []);
-      setLoading(false);
-    });
+    const handleCleared = () => setAnnotations([]);
 
-    // Set a timeout to stop loading if no annotations are received
-    const loadingTimeout = setTimeout(() => {
-      if (loading) {
-        console.log("⏰ Loading timeout - no annotations received");
-        setLoading(false);
-      }
-    }, 3000);
+    socket.on("existingAnnotations", handleExisting);
+    socket.on("annotationAdded", handleAdded);
+    socket.on("annotationsCleared", handleCleared);
 
     return () => {
-      clearTimeout(loadingTimeout);
-      socket.off("annotationAdded");
-      socket.off("annotationsCleared");
-      socket.off("existingAnnotations");
+      socket.off("existingAnnotations", handleExisting);
+      socket.off("annotationAdded", handleAdded);
+      socket.off("annotationsCleared", handleCleared);
     };
-  }, [socket, loading]);
+  }, [socket, mediaId]);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  // Ensure initial load via REST so tab shows data on refresh
+  useEffect(() => {
+    const load = async () => {
+      if (!mediaId || !session?.accessToken) return;
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/comments/${mediaId}/annotations`, {
+          headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.accessToken}`
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAnnotations(Array.isArray(data) ? data : []);
+          console.log("Loaded annotations from REST API:", data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch initial annotations", e);
+      }
+    };
+    load();
+  }, [mediaId, session?.accessToken]);
+
+  const clearAll = () => {
+    if (!socket || !canClear) return;
+    socket.emit("clearAnnotations", { mediaId });
   };
 
-  const seekToTime = (timeInMedia) => {
-    const player = document.getElementById("main-player");
-    if (player) {
-      player.currentTime = timeInMedia;
-      console.log(`⏰ Seeking to time: ${formatTime(timeInMedia)}`);
-    }
+  const formatTime = (seconds = 0) => {
+    const s = Math.max(0, Math.floor(seconds));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${r.toString().padStart(2, "0")}`;
   };
-
-  const getAnnotationIcon = (type) => {
-    switch (type) {
-      case "text": return "🔵";
-      case "freehand": return "✏️";
-      case "arrow": return "➡️";
-      case "rect": return "⬛";
-      case "circle": return "⭕";
-      case "highlight": return "🟡";
-      default: return "📍";
-    }
-  };
-
-  const getAnnotationDescription = (annotation) => {
-    if (annotation.type === "text" && annotation.data?.text) {
-      return annotation.data.text;
-    }
-    
-    switch (annotation.type) {
-      case "freehand": return "Freehand drawing";
-      case "arrow": return "Arrow pointing";
-      case "rect": return "Rectangle shape";
-      case "circle": return "Circle shape";
-      case "highlight": return "Highlighted area";
-      case "text": return "Text annotation";
-      default: return "Annotation";
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading annotations...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Annotations</h3>
-        <div className="text-sm text-gray-300">
-          {annotations.length} annotation{annotations.length !== 1 ? "s" : ""}
-        </div>
+        {canClear && (
+          <button
+            onClick={clearAll}
+            className="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg"
+          >
+            Clear all
+          </button>
+        )}
       </div>
 
-      {/* Annotations List */}
-      <div className="flex-1 overflow-y-auto space-y-3 mb-4">
+      <div className="flex-1 overflow-y-auto space-y-3 mb-2">
         {annotations.length === 0 ? (
-          <div className="text-center text-gray-400 py-8">
-            <p>No annotations yet</p>
-            {userRole === "viewer" && (
-              <p className="text-xs mt-2">Viewers cannot create annotations</p>
-            )}
-            {userRole !== "viewer" && (
-              <p className="text-xs mt-2">Click anywhere on the video/image to add annotations</p>
-            )}
-          </div>
+          <div className="text-center text-gray-400 py-8">No annotations yet</div>
         ) : (
-          annotations.map((annotation, index) => (
-            <div key={annotation._id || index} className="bg-white/10 rounded-lg p-3 border-l-4 border-blue-500 hover:bg-white/20 transition-colors">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <span className="text-lg">{getAnnotationIcon(annotation.type)}</span>
-                  <span className="font-medium text-sm">{annotation.userName}</span>
+          annotations.map((a, idx) => (
+            <div key={a._id || idx} className="bg-white/10 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-xs font-semibold">
+                    {(a.username || a.userName)?.charAt(0)?.toUpperCase() || "A"}
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">{a.username || a.userName || "Anonymous"}</div>
+                    <div className="text-xs text-gray-400">{new Date(a.createdAt).toLocaleString()}</div>
+                  </div>
                 </div>
-                {annotation.timeInMedia !== undefined && (
-                  <button
-                    onClick={() => seekToTime(annotation.timeInMedia)}
-                    className="text-xs bg-green-500 hover:bg-green-600 px-2 py-1 rounded transition-colors cursor-pointer"
-                    title={`Click to jump to ${formatTime(annotation.timeInMedia)}`}
-                  >
-                    {formatTime(annotation.timeInMedia)}
-                  </button>
-                )}
-              </div>
-              
-              {/* Annotation Text */}
-              <div className="bg-blue-500/20 rounded p-2 mb-2">
-                <p className="text-sm text-white font-medium">
-                  {getAnnotationDescription(annotation)}
-                </p>
-              </div>
-              
-              {/* Position Info */}
-              {annotation.data?.position && (
-                <div className="text-xs text-gray-400 mb-2">
-                  Position: ({Math.round(annotation.data.position.x)}, {Math.round(annotation.data.position.y)})
+                <div className="text-xs bg-blue-500/30 text-blue-100 px-2 py-1 rounded">
+                  ⏱ {formatTime(a.timestamp || a.timeInMedia)}
                 </div>
-              )}
-              
-              <div className="text-xs text-gray-400">
-                {new Date(annotation.createdAt).toLocaleString()}
+              </div>
+              <div className="text-sm text-gray-200 mt-2">
+                {a.text || a?.data?.text || "Annotation"}
               </div>
             </div>
           ))
         )}
-      </div>
-
-      {/* Instructions */}
-      <div className="bg-blue-500/20 rounded-lg p-3">
-        <h4 className="text-sm font-semibold mb-2">💡 How to use:</h4>
-        <ul className="text-xs text-gray-300 space-y-1">
-          <li>• Click anywhere on the video/image to add text annotations</li>
-          <li>• Click on timestamps to jump to that point in the video</li>
-          <li>• Annotations are created in real-time as you add them</li>
-          <li>• Each annotation shows as a blue dot on the media</li>
-          <li>• Use the annotation tools on the left to create new ones</li>
-        </ul>
       </div>
     </div>
   );

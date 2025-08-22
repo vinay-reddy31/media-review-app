@@ -195,6 +195,7 @@ export default function MediaViewerClient({ mediaId, userRole = "owner" }) {
                   videoRef={videoRef}
                   user={session?.user}
                   userRole={userRole}
+                  isVideo={media.type === "video"}
                 />
               </div>
               
