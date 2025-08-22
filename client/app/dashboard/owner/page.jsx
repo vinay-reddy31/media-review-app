@@ -22,7 +22,7 @@ export default function OwnerDashboard() {
 
   const preSync = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       await fetch(`${apiUrl}/users/sync`, {
         method: "POST",
         headers: { Authorization: `Bearer ${session?.accessToken}`, "Content-Type": "application/json" },
@@ -34,7 +34,8 @@ export default function OwnerDashboard() {
 
   const fetchMediaList = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/media/my-media`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/media/my-media`, {
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
       if (response.ok) {

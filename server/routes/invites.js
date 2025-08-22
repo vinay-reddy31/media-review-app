@@ -16,7 +16,7 @@ const router = express.Router();
 // Create invite link (owner/admin)
 router.post("/", verifyKeycloakToken, requireRole("owner"), async (req, res) => {
   try {
-    const { email, role, orgId } = req.body;
+    const { email, role, orgId, mediaId } = req.body;
     if (!email || !role) return res.status(400).json({ error: "email and role are required" });
 
     // If orgId not provided, ensure inviter has an org and use it
@@ -39,7 +39,7 @@ router.post("/", verifyKeycloakToken, requireRole("owner"), async (req, res) => 
     if (!targetOrgId) return res.status(500).json({ error: "Failed to resolve target organization id" });
 
     const token = crypto.randomBytes(24).toString("base64url");
-    await Invite.create({ email, role, orgId: String(targetOrgId), token, invitedBy: req.user.sub });
+    await Invite.create({ email, role, orgId: String(targetOrgId), mediaId: mediaId ?? null, token, invitedBy: req.user.sub });
 
     // Optionally call Keycloak invite endpoint upfront
     try {
@@ -177,7 +177,19 @@ router.post("/:token/accept", verifyKeycloakToken, async (req, res) => {
       push("assignClientRoles FAILED", { error: e.message, roles: orgScopedRoles });
     }
 
-    // 2) If new user flow: create org and client for them, assign owner role for their org
+    // 2) Grant media access if this invite was tied to a specific media
+    let grantedMediaFromInvite = 0;
+    try {
+      if (invite.mediaId) {
+        await MediaAccess.upsert({ mediaId: invite.mediaId, userId: req.user.sub, role: invite.role });
+        grantedMediaFromInvite = 1;
+        push("grantMediaFromInvite OK", { mediaId: invite.mediaId, role: invite.role });
+      }
+    } catch (e) {
+      push("grantMediaFromInvite FAILED", { error: e.message });
+    }
+
+    // 3) If new user flow: create org and client for them, assign owner role for their org
     // Here we consider "new user" as: req.user.email doesn't match any prior accepted invites
     const priorAccepted = await Invite.count({ where: { email: req.user.email, status: "accepted" } });
     if (priorAccepted === 0) {
@@ -238,7 +250,7 @@ router.post("/:token/accept", verifyKeycloakToken, async (req, res) => {
       invite.status = "accepted";
     }
 
-    // 3) Grant access for any pending email-restricted media share links for this invite email
+    // 4) Grant access for any pending email-restricted media share links for this invite email
     let grantedAccessCount = 0;
     try {
       const emailLower = (invite.email || req.user.email || "").toLowerCase();
@@ -254,7 +266,7 @@ router.post("/:token/accept", verifyKeycloakToken, async (req, res) => {
       push("mediaGrantsFromEmailLinks FAILED", { error: e.message });
     }
 
-    // 4) Optionally share inviter's existing media with the invitee for immediate visibility
+    // 5) Optionally share inviter's existing media with the invitee for immediate visibility
     let autoGrantedOwnerMediaCount = 0;
     try {
       const enableAutoShare = String(process.env.ENABLE_AUTO_SHARE_INVITER_MEDIA || 'false').toLowerCase() === 'true';
@@ -273,7 +285,7 @@ router.post("/:token/accept", verifyKeycloakToken, async (req, res) => {
     }
 
     await invite.save();
-    res.json({ ok: true, debug, grantedAccessCount, autoGrantedOwnerMediaCount, membershipEnsured, nextRole: invite.role });
+    res.json({ ok: true, debug, grantedAccessCount, autoGrantedOwnerMediaCount, grantedMediaFromInvite, membershipEnsured, nextRole: invite.role, redirectMediaId: invite.mediaId || null });
   } catch (err) {
     console.error("accept invite error", err);
     res.status(500).json({ error: err.message, where: "accept-invite" });

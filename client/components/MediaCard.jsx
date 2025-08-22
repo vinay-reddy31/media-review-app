@@ -272,7 +272,7 @@ export default function MediaCard({ media, onDelete, isReviewer = false, isViewe
                             "Content-Type": "application/json",
                             Authorization: `Bearer ${session?.accessToken}`,
                           },
-                          body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+                          body: JSON.stringify({ email: inviteEmail, role: inviteRole, mediaId: media.id }),
                         });
                         const data = await res.json().catch(() => ({}));
                         if (!res.ok) {

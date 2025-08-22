@@ -79,7 +79,17 @@ export default function UploadForm({ token, onUploaded }) {
     fd.append("type", type);
 
     try {
-      const res = await fetch(`http://localhost:5000/media/upload`, {
+      // Ensure backend has set up org/client/roles for first-time users before upload
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+        await fetch(`${apiUrl}/users/sync`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        });
+      } catch (_) {}
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${apiUrl}/media/upload`, {
         method: "POST",
         body: fd,
         headers: { Authorization: `Bearer ${token}` },

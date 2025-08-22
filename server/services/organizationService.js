@@ -127,15 +127,16 @@ class OrganizationService {
     } else {
       console.log(`✅ Client '${clientId}' already exists with ID: ${kcClient.id}`);
     }
-    
-    // Ensure we have a valid client ID for the rest of the process
-    if (!kcClient || !kcClient.clientUuid) {
+
+    // Ensure we have a valid client ID for the rest of the process (normalize id)
+    const clientKeycloakId = kcClient?.clientUuid || kcClient?.id;
+    if (!kcClient || !clientKeycloakId) {
       throw new Error(`Failed to create or retrieve client for organization '${orgName}'`);
     }
 
     // 3️⃣ Create Roles (owner, reviewer, viewer) in the Client (using friend's pattern)
     console.log(`🎭 Step 3: Creating client roles (owner, reviewer, viewer)...`);
-    await this.createClientRolesWithWorkingPattern(kcClient.clientUuid, ['owner', 'reviewer', 'viewer']);
+    await this.createClientRolesWithWorkingPattern(clientKeycloakId, ['owner', 'reviewer', 'viewer']);
     console.log(`✅ Client roles created/verified`);
 
     // 4️⃣ Add user to organization and assign owner role (using friend's pattern)
@@ -163,8 +164,8 @@ class OrganizationService {
         
         // Use retry logic for role assignment
         await this.retry(async () => {
-          const ownerRole = await this.getClientRoleByName(kcClient.clientUuid, 'owner');
-          await this.assignClientRoleToUserWithWorkingPattern(userId, kcClient.clientUuid, 'owner');
+          const ownerRole = await this.getClientRoleByName(clientKeycloakId, 'owner');
+          await this.assignClientRoleToUserWithWorkingPattern(userId, clientKeycloakId, 'owner');
         }, 5, 500);
         console.log(`✅ Owner role assigned to user`);
       } catch (roleMapErr) {
@@ -185,7 +186,7 @@ class OrganizationService {
     // Store Client
     const [dbClient] = await Client.findOrCreate({
       where: { clientId },
-      defaults: { keycloakId: kcClient.clientUuid, name: clientId, organizationId: dbOrg.id },
+      defaults: { keycloakId: clientKeycloakId, name: clientId, organizationId: dbOrg.id },
     });
     console.log(`✅ Client stored in DB with ID: ${dbClient.id}`);
 

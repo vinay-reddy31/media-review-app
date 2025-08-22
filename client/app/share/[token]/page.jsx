@@ -126,10 +126,12 @@ export default function AcceptSharePage() {
       if (!res.ok) {
         throw new Error(data.error || "Failed to accept invite");
       }
-      // Force next-auth to refresh session roles by re-initiating login with absolute URL
+      // If invite was tied to a specific media, go straight to it
       const role = data.nextRole || inviteInfo.role;
       const base = typeof window !== "undefined" ? window.location.origin : "";
-      const target = role === "reviewer" ? `${base}/dashboard/reviewer` : role === "viewer" ? `${base}/dashboard/viewer` : `${base}/dashboard`;
+      const target = data.redirectMediaId
+        ? (role === 'reviewer' ? `${base}/dashboard/reviewer/${data.redirectMediaId}` : `${base}/dashboard/viewer/${data.redirectMediaId}`)
+        : (role === "reviewer" ? `${base}/dashboard/reviewer` : role === "viewer" ? `${base}/dashboard/viewer` : `${base}/dashboard`);
       signIn("keycloak", { callbackUrl: target });
     } catch (e) {
       setError(e.message);
