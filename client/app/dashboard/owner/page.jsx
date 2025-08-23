@@ -6,6 +6,7 @@ import UploadForm from "@/components/UploadForm";
 import MediaCard from "@/components/MediaCard";
 import LogoutButton from "@/components/LogoutButton";
 import UserInfo from "@/components/UserInfo";
+import DashboardNavigation from "@/components/DashboardNavigation";
 
 export default function OwnerDashboard() {
   const { data: session, status } = useSession();
@@ -84,6 +85,9 @@ export default function OwnerDashboard() {
             <LogoutButton />
           </div>
         </div>
+
+        {/* Dashboard Navigation */}
+        <DashboardNavigation />
 
         {/* Upload Section */}
         <div className="bg-white/10 backdrop-blur-sm p-6 rounded-lg shadow-lg mb-8">

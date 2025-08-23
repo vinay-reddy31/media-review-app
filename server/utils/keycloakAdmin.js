@@ -806,4 +806,54 @@ export async function assignUserToOrganization({ orgId, userId, role = "member" 
   }
 }
 
+export async function getUserById({ userId }) {
+  console.log(`🔍 getUserById called with userId: ${userId}`);
+  const token = await getAdminToken();
+  console.log(`🔍 Got admin token: ${token ? 'Yes' : 'No'}`);
+  
+  const url = buildUrl(`/admin/realms/${REALM}/users/${encodeURIComponent(userId)}`);
+  console.log(`🔍 Calling Keycloak API: ${url}`);
+  
+  try {
+    const res = await fetch(url, { 
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json"
+      } 
+    });
+    
+    console.log(`🔍 Keycloak API response status: ${res.status}`);
+    
+    if (!res.ok) {
+      if (res.status === 404) {
+        console.log(`🔍 User ${userId} not found in Keycloak`);
+        return null; // User not found
+      }
+      const errorText = await res.text().catch(() => 'No error text');
+      console.log(`🔍 Keycloak API error response: ${errorText}`);
+      throw new Error(`Failed to get user: ${res.status} - ${errorText}`);
+    }
+    
+    const userData = await res.json();
+    console.log(`🔍 Keycloak API response data:`, userData);
+    
+    const result = {
+      id: userData.id,
+      username: userData.username,
+      email: userData.email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      displayName: userData.firstName && userData.lastName 
+        ? `${userData.firstName} ${userData.lastName}`.trim()
+        : userData.username || userData.email || 'Unknown User'
+    };
+    
+    console.log(`🔍 Processed user result:`, result);
+    return result;
+  } catch (error) {
+    console.error(`Error fetching user ${userId}:`, error.message);
+    return null;
+  }
+}
+
 

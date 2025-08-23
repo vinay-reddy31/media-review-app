@@ -170,6 +170,17 @@ export default function MediaCard({ media, onDelete, isReviewer = false, isViewe
           {media.ownerName && (
             <p className="text-xs text-gray-400">By: {media.ownerName}</p>
           )}
+          {/* Show shared by information for reviewer/viewer media */}
+          {media.sharedBy && (
+            <p className="text-xs text-blue-300">
+              🔗 Shared by: {media.sharedBy.split('(')[0]}
+            </p>
+          )}
+          {media.sharedAt && (
+            <p className="text-xs text-blue-300">
+              📅 Shared on: {formatDate(media.sharedAt)}
+            </p>
+          )}
         </div>
 
         <div className="flex gap-2">

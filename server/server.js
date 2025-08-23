@@ -104,13 +104,18 @@ io.on("connection", (socket) => {
 
   // Join media room
   socket.on("joinMediaRoom", async (mediaId) => {
+    console.log(`🔍 User ${socket.user?.sub} attempting to join media room: ${mediaId}`);
+    
     const { role } = await getUserEffectiveRoleForMedia(socket.user, mediaId);
     if (!hasCapability(role, "view")) {
       socket.emit("accessDenied", { reason: "No access to this media" });
       return;
     }
+    
     socket.join(mediaId);
-    console.log(`User ${socket.user?.sub} joined media room: ${mediaId}`);
+    console.log(`✅ User ${socket.user?.sub} joined media room: ${mediaId}`);
+    console.log(`🔍 Current rooms for user:`, socket.rooms);
+    console.log(`🔍 Users in room ${mediaId}:`, io.sockets.adapter.rooms.get(mediaId)?.size || 0);
     
     // Emit user joined to room
     socket.to(mediaId).emit("userJoined", {
@@ -203,15 +208,136 @@ io.on("connection", (socket) => {
   });
 
   // Handle clearing annotations
-  socket.on("clearAnnotations", async (data) => {
+  socket.on("clearAnnotations", async (mediaId) => {
     try {
-      const { role } = await getUserEffectiveRoleForMedia(socket.user, data.mediaId);
-      if (role !== "owner") return;
-      await Annotation.deleteMany({ mediaId: data.mediaId });
-      io.to(data.mediaId).emit("annotationsCleared");
-      console.log(`Annotations cleared for media ${data.mediaId} by ${socket.user?.sub}`);
+      const { role } = await getUserEffectiveRoleForMedia(socket.user, mediaId);
+      if (!hasCapability(role, "annotate")) {
+        socket.emit("accessDenied", { reason: "No annotate permission" });
+        return;
+      }
+      
+      console.log(`🗑️ Clearing all annotations for media: ${mediaId}`);
+      await Annotation.deleteMany({ mediaId: String(mediaId) });
+      
+      // Broadcast to all users in the room
+      io.to(mediaId).emit("annotationsCleared");
+      
+      console.log(`✅ All annotations cleared for media ${mediaId} by ${socket.user?.sub}`);
     } catch (error) {
-      console.error("Error clearing annotations:", error);
+      console.error("❌ Error clearing annotations:", error);
+    }
+  });
+
+  // Handle editing annotations
+  socket.on("editAnnotation", async (data) => {
+    try {
+      const { annotationId, mediaId, newText } = data;
+      
+      console.log(`✏️ Attempting to edit annotation: ${annotationId} from media: ${mediaId}`);
+      console.log(`Current user ID: ${socket.user?.sub}`);
+      
+      // Check if user can edit (annotation author)
+      const annotation = await Annotation.findById(annotationId);
+      if (!annotation) {
+        console.error("Annotation not found:", annotationId);
+        return;
+      }
+
+      const isAnnotationAuthor = String(annotation.userId) === String(socket.user?.sub);
+      
+      if (isAnnotationAuthor) {
+        annotation.text = newText;
+        await annotation.save();
+        
+        // Broadcast update to all users in the room
+        io.to(mediaId).emit("annotationEdited", annotation);
+        
+        console.log(`✅ Annotation edited for media ${mediaId} by ${socket.user?.sub}`);
+      } else {
+        console.log(`User ${socket.user?.sub} not authorized to edit annotation ${annotationId}`);
+        socket.emit("annotationEditError", { 
+          error: "You are not authorized to edit this annotation",
+          annotationId
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error editing annotation:", error);
+      socket.emit("annotationEditError", { 
+        error: "Failed to edit annotation",
+        annotationId: data.annotationId,
+        details: error.message
+      });
+    }
+  });
+
+  // Handle deleting annotations
+  socket.on("deleteAnnotation", async (data) => {
+    try {
+      const { annotationId, mediaId } = data;
+      
+      console.log(`🗑️ Attempting to delete annotation: ${annotationId} from media: ${mediaId}`);
+      console.log(`Current user ID: ${socket.user?.sub}`);
+      console.log(`Current user data:`, socket.user);
+      
+      // Check if user can delete (annotation author or owner)
+      const annotation = await Annotation.findById(annotationId);
+      if (!annotation) {
+        console.error("Annotation not found:", annotationId);
+        return;
+      }
+
+      console.log(`Found annotation:`, annotation);
+      console.log(`Annotation user ID: ${annotation.userId}`);
+      console.log(`Annotation user ID type: ${typeof annotation.userId}`);
+      console.log(`Socket user ID type: ${typeof socket.user?.sub}`);
+      console.log(`Direct comparison: ${annotation.userId === socket.user?.sub}`);
+      console.log(`String comparison: ${String(annotation.userId) === String(socket.user?.sub)}`);
+
+      const isAnnotationAuthor = String(annotation.userId) === String(socket.user?.sub);
+      const allClientRoles = Object.values(socket.user?.resource_access || {}).flatMap((e) => e?.roles || []);
+      const isOwner = (socket.user?.realm_access?.roles || []).includes('owner') || allClientRoles.includes('owner');
+      
+      console.log(`Is annotation author: ${isAnnotationAuthor}`);
+      console.log(`Is owner: ${isOwner}`);
+      console.log(`User roles:`, socket.user?.realm_access?.roles, socket.user?.resource_access?.[process.env.KEYCLOAK_CLIENT_ID]?.roles);
+
+      // Allow deletion if user is annotation author OR if user is owner
+      if (isAnnotationAuthor || isOwner) {
+        const deleteResult = await Annotation.findByIdAndDelete(annotationId);
+        console.log(`Delete result:`, deleteResult);
+        
+        if (deleteResult) {
+          // Broadcast deletion to all users in the room
+          console.log(`Broadcasting annotationDeleted event to room ${mediaId} with annotationId: ${annotationId}`);
+          console.log(`🔍 Room ${mediaId} exists:`, io.sockets.adapter.rooms.has(mediaId));
+          console.log(`🔍 Users in room ${mediaId}:`, io.sockets.adapter.rooms.get(mediaId)?.size || 0);
+          
+          io.to(mediaId).emit("annotationDeleted", { annotationId });
+          
+          console.log(`✅ Annotation deleted from media ${mediaId} by ${socket.user?.sub}`);
+        } else {
+          console.error("Failed to delete annotation from database");
+        }
+      } else {
+        console.log(`User ${socket.user?.sub} not authorized to delete annotation ${annotationId}`);
+        console.log(`User must be annotation author or owner to delete`);
+        
+        socket.emit("annotationDeleteError", { 
+          error: "You can only delete your own annotations or you must be an owner",
+          annotationId,
+          annotationUserId: annotation.userId,
+          currentUserId: socket.user?.sub,
+          isAnnotationAuthor,
+          isOwner
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error deleting annotation:", error);
+      socket.emit("annotationDeleteError", { 
+        error: "Failed to delete annotation",
+        annotationId: data.annotationId,
+        details: error.message
+      });
     }
   });
 
@@ -283,6 +409,7 @@ io.on("connection", (socket) => {
       console.log(`Is owner: ${isOwner}`);
       console.log(`User roles:`, socket.user?.realm_access?.roles, socket.user?.resource_access?.[process.env.KEYCLOAK_CLIENT_ID]?.roles);
 
+      // Allow deletion if user is comment author OR if user is owner
       if (isCommentAuthor || isOwner) {
         const deleteResult = await Comment.findByIdAndDelete(commentId);
         console.log(`Delete result:`, deleteResult);
@@ -297,11 +424,11 @@ io.on("connection", (socket) => {
         }
       } else {
         console.log(`User ${socket.user?.sub} not authorized to delete comment ${commentId}`);
-        console.log(`Comment belongs to: ${comment.userId}`);
+        console.log(`User must be comment author or owner to delete`);
         
         // Send error back to the user who tried to delete
         socket.emit("commentDeleteError", { 
-          error: "You are not authorized to delete this comment",
+          error: "You can only delete your own comments or you must be an owner",
           commentId,
           commentUserId: comment.userId,
           currentUserId: socket.user?.sub,
@@ -314,6 +441,48 @@ io.on("connection", (socket) => {
       // Send error back to the user
       socket.emit("commentDeleteError", { 
         error: "Failed to delete comment",
+        commentId: data.commentId,
+        details: error.message
+      });
+    }
+  });
+
+  // Handle comment editing
+  socket.on("editComment", async (data) => {
+    try {
+      const { commentId, mediaId, newText } = data;
+      
+      console.log(`✏️ Attempting to edit comment: ${commentId} from media: ${mediaId}`);
+      console.log(`Current user ID: ${socket.user?.sub}`);
+      
+      // Check if user can edit (comment author)
+      const comment = await Comment.findById(commentId);
+      if (!comment) {
+        console.error("Comment not found:", commentId);
+        return;
+      }
+
+      const isCommentAuthor = String(comment.userId) === String(socket.user?.sub);
+      
+      if (isCommentAuthor) {
+        comment.text = newText;
+        await comment.save();
+        
+        // Broadcast update to all users in the room
+        io.to(mediaId).emit("commentEdited", comment);
+        
+        console.log(`✅ Comment edited for media ${mediaId} by ${socket.user?.sub}`);
+      } else {
+        console.log(`User ${socket.user?.sub} not authorized to edit comment ${commentId}`);
+        socket.emit("commentEditError", { 
+          error: "You are not authorized to edit this comment",
+          commentId
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error editing comment:", error);
+      socket.emit("commentEditError", { 
+        error: "Failed to edit comment",
         commentId: data.commentId,
         details: error.message
       });

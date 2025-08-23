@@ -20,27 +20,61 @@ export default function AnnotationCanvas({ socket, mediaId, playerId, videoRef, 
 	useEffect(() => {
 		if (!socket) return;
 
+		console.log("🔍 Setting up socket event listeners for AnnotationCanvas");
+		console.log("🔍 Socket connected:", socket.connected);
+		console.log("🔍 Socket ID:", socket.id);
+
 		const handleExisting = (items) => {
 			if (!Array.isArray(items)) return;
 			const filtered = items.filter((a) => String(a.mediaId) === String(mediaId));
+			console.log("🔍 AnnotationCanvas: Existing annotations received:", filtered);
 			setAnnotations(filtered);
 		};
 
 		const handleAdded = (annotation) => {
 			if (String(annotation.mediaId) !== String(mediaId)) return;
+			console.log("🔍 AnnotationCanvas: Annotation added:", annotation);
 			setAnnotations((prev) => [...prev, annotation]);
 		};
 
-		const handleCleared = () => setAnnotations([]);
+		const handleCleared = () => {
+			console.log("🔍 AnnotationCanvas: Annotations cleared");
+			setAnnotations([]);
+		};
+
+		const handleEdited = (editedAnnotation) => {
+			if (String(editedAnnotation.mediaId) !== String(mediaId)) return;
+			console.log("🔍 AnnotationCanvas: Annotation edited:", editedAnnotation);
+			setAnnotations((prev) => 
+				prev.map((a) => a._id === editedAnnotation._id ? editedAnnotation : a)
+			);
+		};
+
+		const handleDeleted = ({ annotationId }) => {
+			console.log("🔍 AnnotationCanvas: Annotation deleted event received:", { annotationId, mediaId });
+			console.log("🔍 AnnotationCanvas: Current annotations before deletion:", annotations);
+			setAnnotations((prev) => {
+				const filtered = prev.filter((a) => a._id !== annotationId);
+				console.log("🔍 AnnotationCanvas: Annotations after deletion:", filtered);
+				return filtered;
+			});
+		};
 
 		socket.on("existingAnnotations", handleExisting);
 		socket.on("annotationAdded", handleAdded);
 		socket.on("annotationsCleared", handleCleared);
+		socket.on("annotationEdited", handleEdited);
+		socket.on("annotationDeleted", handleDeleted);
+
+		console.log("🔍 AnnotationCanvas: Socket event listeners set up successfully");
 
 		return () => {
+			console.log("🔍 AnnotationCanvas: Cleaning up socket event listeners");
 			socket.off("existingAnnotations", handleExisting);
 			socket.off("annotationAdded", handleAdded);
 			socket.off("annotationsCleared", handleCleared);
+			socket.off("annotationEdited", handleEdited);
+			socket.off("annotationDeleted", handleDeleted);
 		};
 	}, [socket, mediaId]);
 
@@ -124,7 +158,19 @@ export default function AnnotationCanvas({ socket, mediaId, playerId, videoRef, 
 							className="absolute -translate-x-1/2 -translate-y-1/2 group"
 							style={{ left, top }}
 						>
-							<span className="inline-block h-3 w-3 rounded-full bg-blue-500 ring-2 ring-white shadow cursor-pointer" />
+							<span 
+								className="inline-block h-3 w-3 rounded-full bg-blue-500 ring-2 ring-white shadow cursor-pointer" 
+								onClick={() => {
+									// Only seek for video annotations with timestamp
+									if (isVideo && a.timestamp !== undefined) {
+										const player = document.getElementById("main-player");
+										if (player) {
+											player.currentTime = a.timestamp;
+										}
+									}
+								}}
+								title={isVideo && a.timestamp !== undefined ? `Click to seek to ${Math.floor(a.timestamp / 60).toString().padStart(2, '0')}:${(a.timestamp % 60).toString().padStart(2, '0')}` : "Annotation marker"}
+							/>
 							{/* Tooltip showing annotation text and username */}
 							<div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black/90 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 max-w-xs">
 								<div className="font-semibold text-blue-300 mb-1">
@@ -133,6 +179,12 @@ export default function AnnotationCanvas({ socket, mediaId, playerId, videoRef, 
 								<div className="text-white">
 									{a.text || "Annotation"}
 								</div>
+								{/* Only show timestamp for video annotations */}
+								{isVideo && a.timestamp !== undefined && (
+									<div className="text-blue-300 text-xs mt-1">
+										⏱ {Math.floor(a.timestamp / 60).toString().padStart(2, '0')}:{(a.timestamp % 60).toString().padStart(2, '0')}
+									</div>
+								)}
 								<div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-black/90"></div>
 							</div>
 						</div>

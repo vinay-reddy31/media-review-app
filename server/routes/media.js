@@ -11,6 +11,7 @@ import { getUserEffectiveRoleForMedia, hasCapability } from "../utils/accessCont
 import { sendShareInvite } from "../utils/mailer.js";
 import { verifyKeycloakToken } from "../middleware/verifyKeycloakToken.js";
 import { requireRole } from "../middleware/requireRole.js";
+import { getUserById } from "../utils/keycloakAdmin.js";
 
 const router = express.Router();
 
@@ -95,6 +96,168 @@ router.get("/all", verifyKeycloakToken, async (req, res) => {
     res.json(merged);
   } catch (err) {
     console.error("Error fetching accessible media:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get media shared with user as reviewer (excludes own media)
+router.get("/reviewer", verifyKeycloakToken, requireRole("reviewer"), async (req, res) => {
+  try {
+    // Find media where user has been granted reviewer access
+    const accessRows = await MediaAccess.findAll({ 
+      where: { 
+        userId: req.user.sub,
+        role: "reviewer"
+      } 
+    });
+    
+    const accessMediaIds = accessRows.map((r) => r.mediaId);
+    
+    if (accessMediaIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Get media with owner information from MediaAccess
+    const sharedMedia = await Media.findAll({ 
+      where: { id: accessMediaIds },
+      order: [["createdAt", "DESC"]]
+    });
+
+    // Add owner information to each media item
+    const mediaWithOwnerInfo = await Promise.all(sharedMedia.map(async media => {
+      const accessRow = accessRows.find(ar => ar.mediaId === media.id);
+      console.log(`🔍 Debug MediaAccess for media ${media.id}:`, {
+        accessRow: accessRow ? {
+          mediaId: accessRow.mediaId,
+          userId: accessRow.userId,
+          role: accessRow.role,
+          createdBy: accessRow.createdBy,
+          createdAt: accessRow.createdAt
+        } : 'No access row found'
+      });
+      
+      let sharedByUser = null;
+      let createdByUserId = accessRow?.createdBy;
+      
+      // If createdBy is missing, fall back to the media owner
+      if (!createdByUserId) {
+        console.log(`🔍 No createdBy found, falling back to media owner: ${media.ownerId}`);
+        createdByUserId = media.ownerId;
+      }
+      
+      if (createdByUserId) {
+        console.log(`🔍 Attempting to fetch user: ${createdByUserId}`);
+        try {
+          sharedByUser = await getUserById({ userId: createdByUserId });
+          console.log(`🔍 getUserById result for ${createdByUserId}:`, sharedByUser);
+        } catch (error) {
+          console.error(`Error fetching user ${createdByUserId}:`, error.message);
+          sharedByUser = null;
+        }
+      } else {
+        console.log(`🔍 No user ID found for media ${media.id}, accessRow:`, accessRow);
+      }
+      
+      console.log(`🔍 Debug sharedBy for media ${media.id}:`, {
+        originalCreatedBy: accessRow?.createdBy,
+        fallbackCreatedBy: media.ownerId,
+        finalCreatedBy: createdByUserId,
+        createdByType: typeof createdByUserId,
+        sharedByUser,
+        finalSharedBy: sharedByUser ? `${sharedByUser.username} (${sharedByUser.email})` : (createdByUserId ? `User ID: ${createdByUserId}` : 'Unknown')
+      });
+      
+      return {
+        ...media.toJSON(),
+        sharedBy: sharedByUser ? `${sharedByUser.username} (${sharedByUser.email})` : (createdByUserId ? `User ID: ${createdByUserId}` : 'Unknown'),
+        sharedAt: accessRow?.createdAt
+      };
+    }));
+
+    res.json(mediaWithOwnerInfo);
+  } catch (err) {
+    console.error("Error fetching reviewer media:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get media shared with user as viewer (excludes own media)
+router.get("/viewer", verifyKeycloakToken, requireRole("viewer"), async (req, res) => {
+  try {
+    // Find media where user has been granted viewer access
+    const accessRows = await MediaAccess.findAll({ 
+      where: { 
+        userId: req.user.sub,
+        role: "viewer"
+      } 
+    });
+    
+    const accessMediaIds = accessRows.map((r) => r.mediaId);
+    
+    if (accessMediaIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Get media with owner information from MediaAccess
+    const sharedMedia = await Media.findAll({ 
+      where: { id: accessMediaIds },
+      order: [["createdAt", "DESC"]]
+    });
+
+    // Add owner information to each media item
+    const mediaWithOwnerInfo = await Promise.all(sharedMedia.map(async media => {
+      const accessRow = accessRows.find(ar => ar.mediaId === media.id);
+      console.log(`🔍 Debug MediaAccess for media ${media.id}:`, {
+        accessRow: accessRow ? {
+          mediaId: accessRow.mediaId,
+          userId: accessRow.userId,
+          role: accessRow.role,
+          createdBy: accessRow.createdBy,
+          createdAt: accessRow.createdAt
+        } : 'No access row found'
+      });
+      
+      let sharedByUser = null;
+      let createdByUserId = accessRow?.createdBy;
+      
+      // If createdBy is missing, fall back to the media owner
+      if (!createdByUserId) {
+        console.log(`🔍 No createdBy found, falling back to media owner: ${media.ownerId}`);
+        createdByUserId = media.ownerId;
+      }
+      
+      if (createdByUserId) {
+        console.log(`🔍 Attempting to fetch user: ${createdByUserId}`);
+        try {
+          sharedByUser = await getUserById({ userId: createdByUserId });
+          console.log(`🔍 getUserById result for ${createdByUserId}:`, sharedByUser);
+        } catch (error) {
+          console.error(`Error fetching user ${createdByUserId}:`, error.message);
+          sharedByUser = null;
+        }
+      } else {
+        console.log(`🔍 No user ID found for media ${media.id}, accessRow:`, accessRow);
+      }
+      
+      console.log(`🔍 Debug sharedBy for media ${media.id}:`, {
+        originalCreatedBy: accessRow?.createdBy,
+        fallbackCreatedBy: media.ownerId,
+        finalCreatedBy: createdByUserId,
+        createdByType: typeof createdByUserId,
+        sharedByUser,
+        finalSharedBy: sharedByUser ? `${sharedByUser.username} (${sharedByUser.email})` : (createdByUserId ? `User ID: ${createdByUserId}` : 'Unknown')
+      });
+      
+      return {
+        ...media.toJSON(),
+        sharedBy: sharedByUser ? `${sharedByUser.username} (${sharedByUser.email})` : (createdByUserId ? `User ID: ${createdByUserId}` : 'Unknown'),
+        sharedAt: accessRow?.createdAt
+      };
+    }));
+
+    res.json(mediaWithOwnerInfo);
+  } catch (err) {
+    console.error("Error fetching viewer media:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -276,10 +439,30 @@ router.post("/share-links/:token/accept", verifyKeycloakToken, async (req, res) 
     }
 
     // Create or update media access
+    console.log(`🔍 Debug: Creating MediaAccess with:`, {
+      mediaId: link.mediaId,
+      userId: req.user.sub,
+      role: link.grantedRole,
+      createdBy: link.createdBy
+    });
+    
     await MediaAccess.upsert({
       mediaId: link.mediaId,
       userId: req.user.sub,
       role: link.grantedRole,
+      createdBy: link.createdBy, // Track who shared this media
+    });
+    
+    // Verify the record was created/updated
+    const createdAccess = await MediaAccess.findOne({
+      where: { mediaId: link.mediaId, userId: req.user.sub }
+    });
+    console.log(`🔍 Debug: MediaAccess record after upsert:`, {
+      id: createdAccess?.id,
+      mediaId: createdAccess?.mediaId,
+      userId: createdAccess?.userId,
+      role: createdAccess?.role,
+      createdBy: createdAccess?.createdBy
     });
 
     // Increment usage count

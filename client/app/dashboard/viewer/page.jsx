@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import MediaCard from "@/components/MediaCard";
 import LogoutButton from "@/components/LogoutButton";
 import UserInfo from "@/components/UserInfo";
+import DashboardNavigation from "@/components/DashboardNavigation";
 import { createSocket } from "@/components/createSocket";
 
 export default function ViewerDashboard() {
@@ -18,8 +19,8 @@ export default function ViewerDashboard() {
     if (status === "loading") return;
     if (!session?.accessToken) return;
 
-    // Fetch all media (viewers can see all media)
-    fetchAllMedia();
+    // Fetch only media shared with user as viewer
+    fetchViewerMedia();
     
     // Setup socket for viewing presence only
     const s = createSocket(session.accessToken);
@@ -49,17 +50,20 @@ export default function ViewerDashboard() {
     };
   }, [session?.accessToken, status]);
 
-  const fetchAllMedia = async () => {
+  const fetchViewerMedia = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/media/all`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/media/viewer`, {
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
       if (response.ok) {
         const data = await response.json();
-        setMediaList(data);
+        setMediaList(Array.isArray(data) ? data : []);
+      } else {
+        setMediaList([]);
       }
     } catch (error) {
-      console.error("Error fetching media:", error);
+      console.error("Error fetching viewer media:", error);
+      setMediaList([]);
     } finally {
       setLoading(false);
     }
@@ -96,7 +100,7 @@ export default function ViewerDashboard() {
           <div>
             <h1 className="text-4xl font-bold mb-4">Viewer Dashboard</h1>
             <p className="text-lg text-gray-300 mb-4">
-              Browse and view media content. Read-only access for content consumption.
+              Browse and view media content shared with you. Read-only access for content consumption.
             </p>
           </div>
           <div className="flex items-center space-x-4">
@@ -104,32 +108,35 @@ export default function ViewerDashboard() {
             <LogoutButton />
           </div>
         </div>
+
+        {/* Dashboard Navigation */}
+        <DashboardNavigation />
           
-          {/* Read-Only Status */}
-          <div className="bg-gray-500/20 backdrop-blur-sm rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold mb-2">👁️ Read-Only Access</h3>
-            <div className="text-sm text-gray-300">
-              <p>• View all uploaded media content</p>
-              <p>• See real-time annotations and comments</p>
-              <p>• Watch collaboration in action</p>
-              <p>• No editing or commenting permissions</p>
-            </div>
+        {/* Read-Only Status */}
+        <div className="bg-gray-500/20 backdrop-blur-sm rounded-lg p-4 mb-6">
+          <h3 className="text-lg font-semibold mb-2">👁️ Read-Only Access</h3>
+          <div className="text-sm text-gray-300">
+            <p>• View media content shared with you</p>
+            <p>• See real-time annotations and comments</p>
+            <p>• Watch collaboration in action</p>
+            <p>• No editing or commenting permissions</p>
           </div>
+        </div>
 
         {/* Media Library */}
         <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 shadow-lg">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold">Media Library</h2>
+            <h2 className="text-2xl font-semibold">Shared Media for Viewing</h2>
             <div className="text-sm text-gray-300">
-              {mediaList.length} media items available
+              {mediaList.length} media items shared with you
             </div>
           </div>
 
           {mediaList.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📺</div>
-              <p className="text-xl text-gray-300 mb-2">No media available to view</p>
-              <p className="text-gray-400">Media will appear here once uploaded by owners</p>
+              <p className="text-xl text-gray-300 mb-2">No media shared for viewing</p>
+              <p className="text-gray-400">Media will appear here once owners share content with you as a viewer</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -160,7 +167,7 @@ export default function ViewerDashboard() {
             <div>
               <h4 className="font-semibold text-blue-300 mb-1">What you can do:</h4>
               <ul className="text-blue-200 space-y-1">
-                <li>• View all media content</li>
+                <li>• View shared media content</li>
                 <li>• See real-time annotations</li>
                 <li>• Read comments and feedback</li>
                 <li>• Watch collaboration in action</li>

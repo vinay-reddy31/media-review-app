@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import MediaCard from "@/components/MediaCard";
 import LogoutButton from "@/components/LogoutButton";
 import UserInfo from "@/components/UserInfo";
+import DashboardNavigation from "@/components/DashboardNavigation";
 import { createSocket } from "@/components/createSocket";
 
 export default function ReviewerDashboard() {
@@ -18,8 +19,8 @@ export default function ReviewerDashboard() {
     if (status === "loading") return;
     if (!session?.accessToken) return;
 
-    // Fetch all media (reviewers can see all media)
-    fetchAllMedia();
+    // Fetch only media shared with user as reviewer
+    fetchReviewerMedia();
     
     // Setup socket for real-time features
     const s = createSocket(session.accessToken);
@@ -50,20 +51,19 @@ export default function ReviewerDashboard() {
     };
   }, [session?.accessToken, status]);
 
-  const fetchAllMedia = async () => {
+  const fetchReviewerMedia = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/media/all`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/media/reviewer`, {
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
       if (response.ok) {
         const data = await response.json();
-        // Filter to items the user explicitly has access to or owns (server already does this, but keep client guard)
         setMediaList(Array.isArray(data) ? data : []);
       } else {
         setMediaList([]);
       }
     } catch (error) {
-      console.error("Error fetching media:", error);
+      console.error("Error fetching reviewer media:", error);
       setMediaList([]);
     } finally {
       setLoading(false);
@@ -101,7 +101,7 @@ export default function ReviewerDashboard() {
           <div>
             <h1 className="text-4xl font-bold mb-4">Reviewer Dashboard</h1>
             <p className="text-lg text-blue-200 mb-4">
-              Review and provide feedback on media content. You can view, comment, and annotate all media.
+              Review and provide feedback on media content shared with you. You can view, comment, and annotate shared media.
             </p>
           </div>
           <div className="flex items-center space-x-4">
@@ -109,32 +109,35 @@ export default function ReviewerDashboard() {
             <LogoutButton />
           </div>
         </div>
+
+        {/* Dashboard Navigation */}
+        <DashboardNavigation />
           
-          {/* Real-time Status */}
-          <div className="bg-blue-500/20 backdrop-blur-sm rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold mb-2">🔄 Real-Time Collaboration</h3>
-            <div className="text-sm text-blue-200">
-              <p>• View all uploaded media content</p>
-              <p>• Add comments and annotations in real-time</p>
-              <p>• See when others are typing or annotating</p>
-              <p>• Collaborate with owners and other reviewers</p>
-            </div>
+        {/* Real-time Status */}
+        <div className="bg-blue-500/20 backdrop-blur-sm rounded-lg p-4 mb-6">
+          <h3 className="text-lg font-semibold mb-2">🔄 Real-Time Collaboration</h3>
+          <div className="text-sm text-blue-200">
+            <p>• Review media content shared with you</p>
+            <p>• Add comments and annotations in real-time</p>
+            <p>• See when others are typing or annotating</p>
+            <p>• Collaborate with media owners and other reviewers</p>
           </div>
+        </div>
 
         {/* Media Library */}
         <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 shadow-lg">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold">Media Library</h2>
+            <h2 className="text-2xl font-semibold">Shared Media for Review</h2>
             <div className="text-sm text-blue-200">
-              {mediaList.length} media items available
+              {mediaList.length} media items shared with you
             </div>
           </div>
 
           {mediaList.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📚</div>
-              <p className="text-xl text-blue-200 mb-2">No media available for review</p>
-              <p className="text-blue-300">Media will appear here once uploaded by owners</p>
+              <p className="text-xl text-blue-200 mb-2">No media shared for review</p>
+              <p className="text-blue-300">Media will appear here once owners share content with you as a reviewer</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -165,7 +168,7 @@ export default function ReviewerDashboard() {
             <div>
               <h4 className="font-semibold text-green-300 mb-1">What you can do:</h4>
               <ul className="text-green-200 space-y-1">
-                <li>• View all media content</li>
+                <li>• View shared media content</li>
                 <li>• Add comments and annotations</li>
                 <li>• Real-time collaboration</li>
                 <li>• See typing indicators</li>

@@ -46,7 +46,9 @@ export default function Home() {
               Sign In
             </button>
             <button
-              onClick={() => alert("Redirect to Keycloak sign-up flow")}
+             onClick={() => {
+              window.location.href = `${process.env.NEXT_PUBLIC_KEYCLOAK_URL}/realms/${process.env.NEXT_PUBLIC_KEYCLOAK_REALM}/protocol/openid-connect/registrations?client_id=${process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID}&response_type=code&scope=openid&redirect_uri=${encodeURIComponent("http://localhost:3000/api/auth/callback/keycloak")}`;
+            }}
               className="px-6 py-3 bg-green-500 hover:bg-green-600 rounded-lg font-semibold transition"
             >
               Sign Up
