@@ -163,7 +163,7 @@ export default function MediaViewerClient({ mediaId, userRole = "owner" }) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Media Player Section */}
           <div className="lg:col-span-3">
             <div className="bg-black/20 backdrop-blur-sm rounded-lg p-4">
@@ -215,7 +215,7 @@ export default function MediaViewerClient({ mediaId, userRole = "owner" }) {
           </div>
 
           {/* Right Sidebar with Tabs */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-2">
             <div className="bg-white/10 backdrop-blur-sm rounded-lg h-fit sticky top-6">
               {/* Tab Navigation */}
               <div className="flex border-b border-white/20">
@@ -244,18 +244,20 @@ export default function MediaViewerClient({ mediaId, userRole = "owner" }) {
               {/* Tab Content */}
               <div className="p-4">
                 {activeTab === "comments" ? (
-                  <CommentsPanel 
-                    socket={socket} 
-                    mediaId={mediaId} 
+                  <CommentsPanel
+                    socket={socket}
+                    mediaId={mediaId}
                     userRole={userRole}
                     user={session?.user}
+                    media={media}
                   />
                 ) : (
-                  <AnnotationsPanel 
-                    socket={socket} 
-                    mediaId={mediaId} 
+                  <AnnotationsPanel
+                    socket={socket}
+                    mediaId={mediaId}
                     userRole={userRole}
                     user={session?.user}
+                    media={media}
                   />
                 )}
               </div>

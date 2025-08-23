@@ -257,7 +257,12 @@ router.post("/:token/accept", verifyKeycloakToken, async (req, res) => {
       if (emailLower) {
         const pendingLinks = await ShareLink.findAll({ where: { inviteeEmail: emailLower, shareType: "email" } });
         for (const link of pendingLinks) {
-          await MediaAccess.upsert({ mediaId: link.mediaId, userId: req.user.sub, role: link.grantedRole });
+          await MediaAccess.upsert({ 
+            mediaId: link.mediaId, 
+            userId: req.user.sub, 
+            role: link.grantedRole,
+            createdBy: link.createdBy
+          });
           grantedAccessCount += 1;
         }
         push("mediaGrantsFromEmailLinks", { count: grantedAccessCount });
@@ -273,7 +278,12 @@ router.post("/:token/accept", verifyKeycloakToken, async (req, res) => {
       if (enableAutoShare && invite.invitedBy && ["reviewer", "viewer"].includes(invite.role)) {
         const ownersMedia = await Media.findAll({ where: { ownerId: invite.invitedBy } });
         for (const m of ownersMedia) {
-          await MediaAccess.upsert({ mediaId: m.id, userId: req.user.sub, role: invite.role });
+          await MediaAccess.upsert({ 
+            mediaId: m.id, 
+            userId: req.user.sub, 
+            role: invite.role,
+            createdBy: invite.invitedBy
+          });
           autoGrantedOwnerMediaCount += 1;
         }
         push("autoShareInvitersMedia", { count: autoGrantedOwnerMediaCount });

@@ -26,6 +26,17 @@ export const connectDB = async () => {
     await sequelize.sync({ alter: true });
     console.log("✅ PostgreSQL connected & synced");
 
+    // Ensure MediaAccess table has the created_by column
+    try {
+      await sequelize.query(`
+        ALTER TABLE media_access 
+        ADD COLUMN IF NOT EXISTS created_by VARCHAR
+      `);
+      console.log("✅ Ensured created_by column exists in media_access table");
+    } catch (e) {
+      console.log("created_by column already exists or sync handled it");
+    }
+
     // Safety: ensure 'id' is auto-incrementing for critical tables (fix legacy schemas)
     await ensureIdentityForIdColumn("clients");
     await ensureIdentityForIdColumn("organizations");

@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
-export default function CommentsPanel({ socket, mediaId, userRole = "owner", user }) {
+export default function CommentsPanel({ socket, mediaId, userRole = "owner", user, media }) {
   const { data: session } = useSession();
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
@@ -13,6 +13,8 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
   const [typingUsers, setTypingUsers] = useState([]);
   const [showDeleteMenu, setShowDeleteMenu] = useState(null);
   const [deletingComment, setDeletingComment] = useState(null);
+  const [editingComment, setEditingComment] = useState(null);
+  const [editText, setEditText] = useState("");
 
   // Debug session data
   useEffect(() => {
@@ -23,7 +25,7 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
 
   // Check if user can comment
   const canComment = userRole !== "viewer";
-  // Check if user can delete (owner can delete any comment)
+  // Check if user can delete (users can delete their own comments, owners can delete any comment)
   const canDelete = (commentUserId) => {
     console.log("Checking if user can delete comment:");
     console.log("User role:", userRole);
@@ -31,14 +33,28 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
     console.log("Current user ID:", session?.user?.id || session?.user?.sub);
     console.log("Session user:", session?.user);
     
+    const currentUserId = session?.user?.id || session?.user?.sub;
+    
     // Owner can delete any comment
     if (userRole === "owner") {
       console.log("User is owner, can delete any comment");
       return true;
     }
     
-    console.log("User cannot delete this comment (not owner)");
+    // Users can delete their own comments
+    if (String(commentUserId) === String(currentUserId)) {
+      console.log("User is comment author, can delete this comment");
+      return true;
+    }
+    
+    console.log("User cannot delete this comment (not owner or author)");
     return false;
+  };
+
+  // Check if user can edit (users can edit their own comments)
+  const canEdit = (commentUserId) => {
+    const currentUserId = session?.user?.id || session?.user?.sub;
+    return String(commentUserId) === String(currentUserId);
   };
 
   useEffect(() => {
@@ -46,29 +62,33 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
 
     // Socket event listeners
     socket.on("commentAdded", (comment) => {
-      console.log("Comment added:", comment);
-      console.log("Comment structure:", {
-        _id: comment._id,
-        userId: comment.userId,
-        userName: comment.userName,
-        text: comment.text,
-        timeInMedia: comment.timeInMedia,
-        createdAt: comment.createdAt
-      });
-      setComments(prev => [...prev, comment]);
+      if (String(comment.mediaId) !== String(mediaId)) return;
+      setComments((prev) => [...prev, comment]);
+      setNewComment("");
+      setSending(false);
     });
 
-    socket.on("commentDeleted", (data) => {
-      console.log("Comment deleted:", data);
-      setComments(prev => prev.filter(c => c._id !== data.commentId));
+    socket.on("commentDeleted", ({ commentId }) => {
+      setComments((prev) => prev.filter((c) => c._id !== commentId));
       setDeletingComment(null);
     });
 
-    socket.on("commentDeleteError", (data) => {
-      console.error("Comment delete error:", data);
+    socket.on("commentDeleteError", ({ error, commentId }) => {
+      console.error("Comment delete error:", error);
+      alert(`Failed to delete comment: ${error}`);
       setDeletingComment(null);
-      // Optionally show error message to user
-      alert(`Failed to delete comment: ${data.error}`);
+    });
+
+    socket.on("commentEdited", (editedComment) => {
+      if (String(editedComment.mediaId) !== String(mediaId)) return;
+      setComments((prev) => 
+        prev.map((c) => c._id === editedComment._id ? editedComment : c)
+      );
+    });
+
+    socket.on("commentEditError", ({ error, commentId }) => {
+      console.error("Comment edit error:", error);
+      alert(`Failed to edit comment: ${error}`);
     });
 
     socket.on("existingComments", (existingComments) => {
@@ -103,6 +123,8 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
       socket.off("commentAdded");
       socket.off("commentDeleted");
       socket.off("commentDeleteError");
+      socket.off("commentEdited");
+      socket.off("commentEditError");
       socket.off("existingComments");
       socket.off("userTyping");
     };
@@ -193,10 +215,32 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
     }
   };
 
+  const handleEditComment = async (commentId) => {
+    if (!socket || !commentId || !editText.trim()) return;
+    
+    try {
+      socket.emit("editComment", { commentId, mediaId, newText: editText.trim() });
+      setEditingComment(null);
+      setEditText("");
+    } catch (error) {
+      console.error("Error editing comment:", error);
+    }
+  };
+
+  const startEditComment = (comment) => {
+    setEditingComment(comment._id);
+    setEditText(comment.text);
+  };
+
+  const cancelEditComment = () => {
+    setEditingComment(null);
+    setEditText("");
+  };
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const seekToTime = (timeInMedia) => {
@@ -243,7 +287,8 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
                   <span className="font-medium text-sm">{comment.userName}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {comment.timeInMedia !== undefined && (
+                  {/* Only show timeline for video comments */}
+                  {comment.timeInMedia !== undefined && media?.type === "video" && (
                     <button
                       onClick={() => seekToTime(comment.timeInMedia)}
                       className="text-xs bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded transition-colors"
@@ -251,8 +296,8 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
                       {formatTime(comment.timeInMedia)}
                     </button>
                   )}
-                  {/* Three dots menu for deletion */}
-                  {canDelete(comment.userId) && (
+                  {/* Three dots menu for edit/delete */}
+                  {(canEdit(comment.userId) || canDelete(comment.userId)) && (
                     <div className="relative">
                       <button
                         onClick={() => setShowDeleteMenu(showDeleteMenu === comment._id ? null : comment._id)}
@@ -265,20 +310,48 @@ export default function CommentsPanel({ socket, mediaId, userRole = "owner", use
                       </button>
                       {showDeleteMenu === comment._id && (
                         <div className="absolute right-0 top-8 bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50">
-                          <button
-                            onClick={() => handleDeleteComment(comment._id)}
-                            disabled={deletingComment === comment._id}
-                            className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 rounded-lg disabled:opacity-50"
-                          >
-                            {deletingComment === comment._id ? "🗑️ Deleting..." : "🗑️ Delete Comment"}
-                          </button>
+                          {canEdit(comment.userId) && (
+                            <button
+                              onClick={() => startEditComment(comment)}
+                              className="block w-full text-left px-4 py-2 text-sm text-blue-400 hover:bg-gray-700 rounded-lg"
+                            >
+                              ✏️ Edit Comment
+                            </button>
+                          )}
+                          {canDelete(comment.userId) && (
+                            <button
+                              onClick={() => handleDeleteComment(comment._id)}
+                              disabled={deletingComment === comment._id}
+                              className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 rounded-lg disabled:opacity-50"
+                            >
+                              {deletingComment === comment._id ? "🗑️ Deleting..." : "🗑️ Delete Comment"}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
                   )}
                 </div>
               </div>
-              <p className="text-sm text-gray-200">{comment.text}</p>
+              <p className="text-sm text-gray-200">
+                {editingComment === comment._id ? (
+                  <textarea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onBlur={cancelEditComment}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleEditComment(comment._id);
+                      }
+                    }}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg p-3 text-white placeholder-gray-300 resize-none"
+                    rows={3}
+                  />
+                ) : (
+                  comment.text
+                )}
+              </p>
               <div className="text-xs text-gray-400 mt-2">
                 {new Date(comment.createdAt).toLocaleString()}
               </div>
