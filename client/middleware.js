@@ -35,28 +35,9 @@ export async function middleware(req) {
       }
     }
 
-      // Guard: if user tries to access a dashboard they don't have, redirect to their best
-    const best = roles.includes("owner")
-      ? "/dashboard/owner"
-      : roles.includes("reviewer")
-      ? "/dashboard/reviewer"
-      : roles.includes("viewer")
-      ? "/dashboard/viewer"
-      : "/";
-
-    // Allow first-time users (no roles yet) to access owner dashboard so onboarding can complete
-    if (url.pathname.startsWith("/dashboard/owner") && !roles.includes("owner") && hasAnyRole) {
-      url.pathname = best;
-      return NextResponse.redirect(url);
-    }
-    if (url.pathname.startsWith("/dashboard/reviewer") && !roles.includes("reviewer") && hasAnyRole) {
-      url.pathname = best;
-      return NextResponse.redirect(url);
-    }
-    if (url.pathname.startsWith("/dashboard/viewer") && !roles.includes("viewer") && hasAnyRole) {
-      url.pathname = best;
-      return NextResponse.redirect(url);
-    }
+      // Allow access to all dashboard types - users can see "no content" state
+    // even if they don't have media shared with them yet
+    // No role-based restrictions on dashboard access
   }
 
   return NextResponse.next();

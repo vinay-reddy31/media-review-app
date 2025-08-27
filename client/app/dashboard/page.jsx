@@ -8,10 +8,10 @@ export default async function DashboardIndex() {
 
   if (!session) redirect("/");
 
+  // Default to owner dashboard for first-time users or users with no specific role
   const roles = session.roles || [];
-  // Prioritize owner > reviewer > viewer
   if (roles.length === 0 || roles.includes("owner")) return redirect("/dashboard/owner");
-  if (roles.includes("reviewer")) return redirect("/dashboard/reviewer");
-  if (roles.includes("viewer")) return redirect("/dashboard/viewer");
-  return redirect("/"); // fallback
+  
+  // For users with specific roles, still default to owner but they can navigate to others
+  return redirect("/dashboard/owner");
 }

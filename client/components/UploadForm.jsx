@@ -1,14 +1,24 @@
 // client/components/UploadForm.jsx
 "use client";
 import React, { useState } from "react";
+import toast from "react-hot-toast";
+import { 
+  CloudArrowUpIcon, 
+  PhotoIcon, 
+  VideoCameraIcon,
+  DocumentTextIcon,
+  XMarkIcon,
+  CheckCircleIcon
+} from "@heroicons/react/24/outline";
 
-export default function UploadForm({ token, onUploaded }) {
+export default function UploadForm({ token, onUploaded, onUploadStart }) {
   const [title, setTitle] = useState("");
   const [type, setType] = useState("video");
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dragActive, setDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -37,7 +47,9 @@ export default function UploadForm({ token, onUploaded }) {
     // Check file size (200MB limit)
     const maxSize = 200 * 1024 * 1024; // 200MB
     if (selectedFile.size > maxSize) {
-      setError("File size must be less than 200MB");
+      const errorMsg = "File size must be less than 200MB";
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
@@ -46,32 +58,55 @@ export default function UploadForm({ token, onUploaded }) {
     const isImage = selectedFile.type.startsWith("image/");
     
     if (type === "video" && !isVideo) {
-      setError("Please select a valid video file");
+      const errorMsg = "Please select a valid video file";
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
     
     if (type === "image" && !isImage) {
-      setError("Please select a valid image file");
+      const errorMsg = "Please select a valid image file";
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     setFile(selectedFile);
+    toast.success(`${selectedFile.name} selected successfully!`);
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!file) {
-      setError("Please choose a file to upload.");
+      const errorMsg = "Please choose a file to upload.";
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
     
     if (!title.trim()) {
-      setError("Please enter a title for your media.");
+      const errorMsg = "Please enter a title for your media.";
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     setLoading(true);
     setError("");
+    setUploadProgress(0);
+    onUploadStart && onUploadStart();
+
+    const uploadToast = toast.loading('Uploading media...', {
+      duration: Infinity,
+    });
 
     const fd = new FormData();
     fd.append("file", file);
@@ -101,109 +136,172 @@ export default function UploadForm({ token, onUploaded }) {
         throw new Error(data.error || res.statusText);
       }
 
+      toast.success('Media uploaded successfully!', {
+        id: uploadToast,
+      });
+      
       onUploaded(data.media);
       setTitle("");
       setFile(null);
       setError("");
+      setUploadProgress(0);
     } catch (err) {
-      setError("Upload failed: " + err.message);
+      const errorMsg = "Upload failed: " + err.message;
+      setError(errorMsg);
+      toast.error(errorMsg, {
+        id: uploadToast,
+      });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-gradient-to-r from-blue-50 to-purple-100 shadow-lg rounded-xl p-6 max-w-md mx-auto space-y-4 border border-gray-200"
-    >
-      <h2 className="text-2xl font-semibold text-gray-800 text-center">
-        Upload Your Media
-      </h2>
-
+    <form onSubmit={handleSubmit} className="space-y-6">
       {/* Title input */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-white mb-2">
           Media Title
         </label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Enter a descriptive title"
+          placeholder="Enter a descriptive title for your media"
           required
-          className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-400 focus:outline-none text-gray-700"
+          className="input"
+          disabled={loading}
         />
       </div>
 
       {/* Media type select */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-white mb-2">
           Media Type
         </label>
-        <select
-          value={type}
-          onChange={(e) => {
-            setType(e.target.value);
-            setFile(null); // Clear file when type changes
-          }}
-          className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-400 focus:outline-none text-gray-700"
-        >
-          <option value="image">📷 Image</option>
-          <option value="video">🎥 Video</option>
-        </select>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setType("image");
+              setFile(null);
+              toast.success('Switched to Image mode');
+            }}
+            className={`p-4 rounded-xl border-2 transition-all duration-300 flex flex-col items-center space-y-2 ${
+              type === "image"
+                ? "border-blue-500 bg-blue-500/20 text-blue-300"
+                : "border-white/20 bg-white/5 text-white/70 hover:border-white/40 hover:bg-white/10"
+            }`}
+            disabled={loading}
+          >
+            <PhotoIcon className="w-6 h-6" />
+            <span className="text-sm font-medium">Image</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => {
+              setType("video");
+              setFile(null);
+              toast.success('Switched to Video mode');
+            }}
+            className={`p-4 rounded-xl border-2 transition-all duration-300 flex flex-col items-center space-y-2 ${
+              type === "video"
+                ? "border-purple-500 bg-purple-500/20 text-purple-300"
+                : "border-white/20 bg-white/5 text-white/70 hover:border-white/40 hover:bg-white/10"
+            }`}
+            disabled={loading}
+          >
+            <VideoCameraIcon className="w-6 h-6" />
+            <span className="text-sm font-medium">Video</span>
+          </button>
+        </div>
       </div>
 
       {/* File input */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-white mb-2">
           Select File
         </label>
         <div
-          className={`flex items-center justify-center w-full p-6 border-2 border-dashed rounded-lg transition-colors ${
+          className={`relative border-2 border-dashed rounded-xl transition-all duration-300 ${
             dragActive 
-              ? "border-purple-400 bg-purple-50" 
-              : "border-gray-300 hover:border-purple-400"
+              ? "border-blue-400 bg-blue-500/10" 
+              : "border-white/30 hover:border-white/50 bg-white/5"
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
         >
-          <label className="flex flex-col items-center cursor-pointer">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-8 h-8 mb-2 text-purple-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M4 12l6-6m0 0l6 6m-6-6v12"
+          {file ? (
+            <div className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
+                  <CheckCircleIcon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{file.name}</p>
+                  <p className="text-xs text-white/60">{formatFileSize(file.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFile(null);
+                    toast.success('File removed');
+                  }}
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors"
+                  disabled={loading}
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <label className="flex flex-col items-center p-8 cursor-pointer">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                <CloudArrowUpIcon className="w-8 h-8 text-white" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-white mb-1">
+                  Choose a {type} file or drag & drop
+                </p>
+                <p className="text-xs text-white/60">
+                  Max size: 200MB • {type === "video" ? "MP4, MOV, AVI" : "JPG, PNG, GIF"}
+                </p>
+              </div>
+              <input
+                type="file"
+                accept={type === "video" ? "video/*" : "image/*"}
+                onChange={(e) => validateAndSetFile(e.target.files[0])}
+                className="hidden"
+                disabled={loading}
               />
-            </svg>
-            <span className="text-sm font-medium text-gray-600">
-              {file ? file.name : `Choose a ${type} file or drag & drop`}
-            </span>
-            <span className="text-xs text-gray-500 mt-1">
-              Max size: 200MB
-            </span>
-            <input
-              type="file"
-              accept={type === "video" ? "video/*" : "image/*"}
-              onChange={(e) => validateAndSetFile(e.target.files[0])}
-              className="hidden"
-            />
-          </label>
+            </label>
+          )}
         </div>
       </div>
 
       {/* Error message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-          {error}
+        <div className="bg-red-500/20 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg text-sm flex items-center space-x-2">
+          <XMarkIcon className="w-4 h-4" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Upload Progress */}
+      {loading && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm text-white/70">
+            <span>Uploading...</span>
+            <span>{uploadProgress}%</span>
+          </div>
+          <div className="w-full bg-white/10 rounded-full h-2">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress}%` }}
+            ></div>
+          </div>
         </div>
       )}
 
@@ -211,17 +309,34 @@ export default function UploadForm({ token, onUploaded }) {
       <button
         type="submit"
         disabled={loading || !file || !title.trim()}
-        className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-medium rounded-lg shadow hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full btn-primary flex items-center justify-center space-x-2 py-4 text-lg"
       >
         {loading ? (
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-            Uploading...
-          </div>
+          <>
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>Uploading Media...</span>
+          </>
         ) : (
-          "🚀 Upload Media"
+          <>
+            <CloudArrowUpIcon className="w-5 h-5" />
+            <span>Upload Media</span>
+          </>
         )}
       </button>
+
+      {/* Upload tips */}
+      <div className="bg-white/5 rounded-lg p-4">
+        <h4 className="text-sm font-medium text-white mb-2 flex items-center space-x-2">
+          <DocumentTextIcon className="w-4 h-4" />
+          <span>Upload Tips</span>
+        </h4>
+        <ul className="text-xs text-white/60 space-y-1">
+          <li>• Use descriptive titles for better organization</li>
+          <li>• Supported formats: {type === "video" ? "MP4, MOV, AVI" : "JPG, PNG, GIF"}</li>
+          <li>• Maximum file size: 200MB</li>
+          <li>• You can share media with reviewers and viewers after upload</li>
+        </ul>
+      </div>
     </form>
   );
 }

@@ -3,6 +3,12 @@
 
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
+import { 
+  UserIcon, 
+  BuildingOfficeIcon, 
+  ShieldCheckIcon,
+  InformationCircleIcon
+} from "@heroicons/react/24/outline";
 
 export default function UserInfo({ className = "" }) {
   const { data: session, status } = useSession();
@@ -55,9 +61,9 @@ export default function UserInfo({ className = "" }) {
 
   if (status === "loading" || loading) {
     return (
-      <div className={`flex items-center space-x-3 text-gray-600 ${className}`}>
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-        <span>Loading user info...</span>
+      <div className={`flex items-center space-x-3 text-white/60 ${className}`}>
+        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+        <span className="text-sm">Loading...</span>
       </div>
     );
   }
@@ -68,61 +74,69 @@ export default function UserInfo({ className = "" }) {
 
   if (!userInfo) {
     return (
-      <div className={`flex items-center space-x-3 text-gray-600 ${className}`}>
-        <span>User info unavailable</span>
+      <div className={`flex items-center space-x-3 text-white/60 ${className}`}>
+        <span className="text-sm">User info unavailable</span>
       </div>
     );
   }
 
+  const getRoleColor = (role) => {
+    switch (role) {
+      case 'owner':
+        return 'from-purple-500 to-purple-600';
+      case 'admin':
+        return 'from-red-500 to-red-600';
+      case 'reviewer':
+        return 'from-blue-500 to-blue-600';
+      case 'viewer':
+        return 'from-green-500 to-green-600';
+      default:
+        return 'from-gray-500 to-gray-600';
+    }
+  };
+
   return (
     <div className={`flex items-center space-x-4 text-sm ${className}`}>
       {/* User Avatar */}
-      <div className="flex items-center space-x-2">
-        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-xs">
+      <div className="flex items-center space-x-3">
+        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-lg">
           {userInfo.username?.charAt(0)?.toUpperCase() || 'U'}
         </div>
         <div className="flex flex-col">
-          <span className="font-medium text-white-900">
+          <span className="font-semibold text-white">
             {userInfo.username}
           </span>
-          <span className="text-xs text-white-500">
-            Logged in
+          <span className="text-xs text-white/60">
+            Active session
           </span>
         </div>
       </div>
 
       {/* Organization Info */}
       {userInfo.hasAccess && (
-        <div className="flex items-center space-x-2 text-gray-600">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-          </svg>
-          <span className="font-medium text-white">{userInfo.organization}</span>
+        <div className="hidden md:flex items-center space-x-2 text-white/80">
+          <BuildingOfficeIcon className="w-4 h-4" />
+          <span className="font-medium">{userInfo.organization}</span>
         </div>
       )}
 
       {/* Role Badge */}
       {userInfo.hasAccess && (
-        <div className="flex items-center space-x-2">
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-            userInfo.role === 'owner' ? 'bg-purple-100 text-purple-800' :
-            userInfo.role === 'admin' ? 'bg-red-100 text-red-800' :
-            userInfo.role === 'reviewer' ? 'bg-blue-100 text-blue-800' :
-            userInfo.role === 'viewer' ? 'bg-green-100 text-green-800' :
-            'bg-gray-100 text-gray-800'
-          }`}>
-            {userInfo.role}
-          </span>
+        <div className="hidden sm:flex items-center space-x-2">
+          <div className={`px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r ${getRoleColor(userInfo.role)} text-white shadow-lg`}>
+            <div className="flex items-center space-x-1">
+              <ShieldCheckIcon className="w-3 h-3" />
+              <span className="capitalize">{userInfo.role}</span>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Multiple Organizations Indicator */}
       {userInfo.organizations && userInfo.organizations.length > 1 && (
-        <div className="flex items-center space-x-1 text-xs text-gray-500">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>{userInfo.organizations.length} orgs</span>
+        <div className="hidden lg:flex items-center space-x-1 text-xs text-white/60">
+          <InformationCircleIcon className="w-3 h-3" />
+          <span>{userInfo.organizations.length} organizations</span>
         </div>
       )}
     </div>
