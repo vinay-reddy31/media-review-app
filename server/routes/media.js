@@ -101,7 +101,7 @@ router.get("/all", verifyKeycloakToken, async (req, res) => {
 });
 
 // Get media shared with user as reviewer (excludes own media)
-router.get("/reviewer", verifyKeycloakToken, requireRole("reviewer"), async (req, res) => {
+router.get("/reviewer", verifyKeycloakToken, async (req, res) => {
   try {
     // Find media where user has been granted reviewer access
     const accessRows = await MediaAccess.findAll({ 
@@ -182,7 +182,7 @@ router.get("/reviewer", verifyKeycloakToken, requireRole("reviewer"), async (req
 });
 
 // Get media shared with user as viewer (excludes own media)
-router.get("/viewer", verifyKeycloakToken, requireRole("viewer"), async (req, res) => {
+router.get("/viewer", verifyKeycloakToken, async (req, res) => {
   try {
     // Find media where user has been granted viewer access
     const accessRows = await MediaAccess.findAll({ 

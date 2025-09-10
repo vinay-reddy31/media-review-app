@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import MediaViewerClient from "@/components/MediaViewerClient";
 import LogoutButton from "@/components/LogoutButton";
+import UserInfo from "@/components/UserInfo";
 
 export default function MediaViewerPage() {
   const { data: session, status } = useSession();
@@ -65,29 +66,34 @@ export default function MediaViewerPage() {
 
   return (
     <div className="relative">
-      {/* Back Button and Logout */}
-      <div className="absolute top-6 left-6 z-20 flex items-center space-x-4">
-        <Link
-          href="/dashboard/owner"
-          className="bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-black/70 transition-colors flex items-center gap-2"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      {/* Header with Back Button, User Info, and Logout */}
+      <div className="absolute top-6 left-6 right-6 z-20 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Link
+            href="/dashboard/owner"
+            className="bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-black/70 transition-colors flex items-center gap-2"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
-            />
-          </svg>
-          Back to Dashboard
-        </Link>
-        <LogoutButton className="bg-black/50 backdrop-blur-sm hover:bg-black/70" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            Back to Dashboard
+          </Link>
+        </div>
+        <div className="flex items-center space-x-4">
+          <UserInfo />
+          <LogoutButton className="bg-black/50 backdrop-blur-sm hover:bg-black/70" />
+        </div>
       </div>
       
       <MediaViewerClient mediaId={params.mediaId} userRole="owner" />

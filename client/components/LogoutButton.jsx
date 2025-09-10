@@ -2,11 +2,17 @@
 
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+import { ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
 
 export default function LogoutButton({ className = "" }) {
   const router = useRouter();
 
   const handleLogout = async () => {
+    const logoutToast = toast.loading('Signing out...', {
+      duration: Infinity,
+    });
+
     try {
       // Ask server for Keycloak logout URL
       const logoutResponse = await fetch('/api/auth/logout', {
@@ -33,10 +39,18 @@ export default function LogoutButton({ className = "" }) {
       // Clear NextAuth session but do not redirect yet
       await signOut({ redirect: false });
 
+      toast.success('Signed out successfully!', {
+        id: logoutToast,
+      });
+
       // Hard redirect to Keycloak end-session endpoint
       window.location.href = logoutUrl;
     } catch (error) {
       console.error("Logout error:", error);
+      toast.error('Error signing out', {
+        id: logoutToast,
+      });
+      
       try {
         await signOut({ callbackUrl: "/", redirect: true });
       } catch (_) {}
@@ -46,23 +60,10 @@ export default function LogoutButton({ className = "" }) {
   return (
     <button
       onClick={handleLogout}
-      className={`bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors font-medium flex items-center space-x-2 ${className}`}
+      className={`bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-2 py-1 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-red-500/50 font-medium flex items-center space-x-2 shadow-lg hover:shadow-xl ${className}`}
     >
-      <svg
-        className="w-4 h-4"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-        />
-      </svg>
-      <span>Logout</span>
+      <ArrowRightOnRectangleIcon className="w-4 h-4" />
+      <span>Sign Out</span>
     </button>
   );
 }

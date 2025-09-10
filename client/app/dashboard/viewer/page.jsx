@@ -7,6 +7,15 @@ import LogoutButton from "@/components/LogoutButton";
 import UserInfo from "@/components/UserInfo";
 import DashboardNavigation from "@/components/DashboardNavigation";
 import { createSocket } from "@/components/createSocket";
+import { 
+  EyeIcon, 
+  ClockIcon,
+  UserGroupIcon,
+  SparklesIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  PlayIcon
+} from "@heroicons/react/24/outline";
 
 export default function ViewerDashboard() {
   const { data: session, status } = useSession();
@@ -52,6 +61,7 @@ export default function ViewerDashboard() {
 
   const fetchViewerMedia = async () => {
     try {
+      setLoading(true);
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/media/viewer`, {
         headers: { Authorization: `Bearer ${session?.accessToken}` },
       });
@@ -79,121 +89,264 @@ export default function ViewerDashboard() {
     }
   };
 
+  const stats = [
+    {
+      label: "Available Media",
+      value: mediaList.length,
+      icon: EyeIcon,
+      color: "from-green-500 to-green-600"
+    },
+    {
+      label: "Active Viewers",
+      value: Object.keys(activeUsers).length,
+      icon: UserGroupIcon,
+      color: "from-blue-500 to-blue-600"
+    },
+    {
+      label: "Recent Activity",
+      value: mediaList.length > 0 ? "Live" : "None",
+      icon: ClockIcon,
+      color: "from-purple-500 to-purple-600"
+    }
+  ];
+
   if (status === "loading" || loading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-gray-900 to-slate-800 text-white px-6 py-12">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-            <p>Loading media library...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900">
+        <DashboardNavigation />
+        <div className="lg:ml-64 p-6">
+          <div className="container-responsive">
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+                <p className="text-white/80 text-lg">Loading viewing content...</p>
+              </div>
+            </div>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-900 to-slate-800 text-white px-6 py-12">
-      <div className="max-w-6xl mx-auto">
-        {/* Header with Logout */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold mb-4">Viewer Dashboard</h1>
-            <p className="text-lg text-gray-300 mb-4">
-              Browse and view media content shared with you. Read-only access for content consumption.
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <UserInfo />
-            <LogoutButton />
-          </div>
-        </div>
-
-        {/* Dashboard Navigation */}
-        <DashboardNavigation />
-          
-        {/* Read-Only Status */}
-        <div className="bg-gray-500/20 backdrop-blur-sm rounded-lg p-4 mb-6">
-          <h3 className="text-lg font-semibold mb-2">👁️ Read-Only Access</h3>
-          <div className="text-sm text-gray-300">
-            <p>• View media content shared with you</p>
-            <p>• See real-time annotations and comments</p>
-            <p>• Watch collaboration in action</p>
-            <p>• No editing or commenting permissions</p>
-          </div>
-        </div>
-
-        {/* Media Library */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 shadow-lg">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold">Shared Media for Viewing</h2>
-            <div className="text-sm text-gray-300">
-              {mediaList.length} media items shared with you
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900">
+      <DashboardNavigation />
+      
+      <div className="lg:ml-64 p-6 pb-20 lg:pb-6">
+        <div className="container-responsive">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <h1 className="text-4xl lg:text-5xl font-bold text-white mb-2">
+                  <span className="text-gradient-primary">Viewer</span> Dashboard
+                </h1>
+                <p className="text-lg text-white/70 max-w-2xl">
+                  Browse and view media content shared with you. Read-only access for content consumption with real-time collaboration visibility.
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-4">
+                <UserInfo />
+                <LogoutButton />
+              </div>
             </div>
           </div>
 
-          {mediaList.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📺</div>
-              <p className="text-xl text-gray-300 mb-2">No media shared for viewing</p>
-              <p className="text-gray-400">Media will appear here once owners share content with you as a viewer</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mediaList.map((media) => (
-                <div key={media.id} className="relative">
-                  <MediaCard 
-                    media={media} 
-                    isViewer={true}
-                    onMediaClick={() => handleMediaClick(media.id)}
-                  />
-                  
-                  {/* Active User Indicator */}
-                  {activeUsers[media.id] && (
-                    <div className="absolute top-2 left-2 bg-blue-500 text-white px-2 py-1 rounded text-xs">
-                      👤 {activeUsers[media.id]} is viewing
-                    </div>
-                  )}
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {stats.map((stat, index) => (
+              <div
+                key={stat.label}
+                className="card-glass p-6 animate-fade-in"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/70 text-sm font-medium">{stat.label}</p>
+                    <p className="text-3xl font-bold text-white mt-1">{stat.value}</p>
+                  </div>
+                  <div className={`w-12 h-12 bg-gradient-to-r ${stat.color} rounded-xl flex items-center justify-center`}>
+                    <stat.icon className="w-6 h-6 text-white" />
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            ))}
+          </div>
 
-        {/* Viewer Permissions Info */}
-        <div className="mt-8 bg-gray-500/20 backdrop-blur-sm rounded-lg p-4">
-          <h3 className="text-lg font-semibold mb-2">👁️ Viewer Permissions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <h4 className="font-semibold text-blue-300 mb-1">What you can do:</h4>
-              <ul className="text-blue-200 space-y-1">
-                <li>• View shared media content</li>
-                <li>• See real-time annotations</li>
-                <li>• Read comments and feedback</li>
-                <li>• Watch collaboration in action</li>
-              </ul>
+          {/* Read-Only Status */}
+          <div className="card-glass p-6 mb-8 animate-fade-in" style={{ animationDelay: '300ms' }}>
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl flex items-center justify-center">
+                <EyeIcon className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">👁️ Read-Only Access</h3>
+                <p className="text-white/70">View and observe collaboration in real-time</p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-semibold text-red-300 mb-1">What you cannot do:</h4>
-              <ul className="text-red-200 space-y-1">
-                <li>• Upload new media</li>
-                <li>• Add comments or annotations</li>
-                <li>• Delete or modify content</li>
-                <li>• Edit media metadata</li>
-              </ul>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2 text-blue-300">
+                  <CheckCircleIcon className="w-4 h-4" />
+                  <span>View media content shared with you</span>
+                </div>
+                <div className="flex items-center space-x-2 text-blue-300">
+                  <CheckCircleIcon className="w-4 h-4" />
+                  <span>See real-time annotations and comments</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2 text-blue-300">
+                  <CheckCircleIcon className="w-4 h-4" />
+                  <span>Watch collaboration in action</span>
+                </div>
+                <div className="flex items-center space-x-2 text-blue-300">
+                  <CheckCircleIcon className="w-4 h-4" />
+                  <span>Observe real-time user activity</span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Real-Time Collaboration Status */}
-        <div className="mt-6 bg-blue-500/10 backdrop-blur-sm rounded-lg p-4">
-          <h3 className="text-lg font-semibold mb-2">🔄 Live Collaboration</h3>
-          <p className="text-sm text-gray-300">
-            You can see real-time annotations and comments being added by owners and reviewers. 
-            Watch the collaboration happen in real-time as teams work together on media content.
-          </p>
+          {/* Media Library */}
+          <div className="card-glass p-8 animate-fade-in" style={{ animationDelay: '400ms' }}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-gray-500 to-gray-600 rounded-xl flex items-center justify-center">
+                  <SparklesIcon className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Shared Media for Viewing</h2>
+                  <p className="text-white/70">{mediaList.length} media items shared with you</p>
+                </div>
+              </div>
+            </div>
+
+            {mediaList.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-24 h-24 bg-gradient-to-r from-gray-500/20 to-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <EyeIcon className="w-12 h-12 text-white/50" />
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">No media shared for viewing</h3>
+                <p className="text-white/60 mb-6 max-w-md mx-auto">
+                  Media will appear here once owners share content with you as a viewer. You'll be able to observe real-time collaboration.
+                </p>
+                <div className="flex items-center justify-center space-x-2 text-white/40">
+                  <EyeIcon className="w-5 h-5" />
+                  <span>•</span>
+                  <PlayIcon className="w-5 h-5" />
+                  <span>•</span>
+                  <UserGroupIcon className="w-5 h-5" />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {mediaList.map((media, index) => (
+                  <div
+                    key={media.id}
+                    className="animate-fade-in"
+                    style={{ animationDelay: `${500 + index * 50}ms` }}
+                  >
+                    <MediaCard 
+                      media={media} 
+                      isViewer={true}
+                      onMediaClick={() => handleMediaClick(media.id)}
+                    />
+                    
+                    {/* Active User Indicator */}
+                    {activeUsers[media.id] && (
+                      <div className="absolute top-2 left-2 bg-blue-500 text-white px-3 py-1 rounded-full text-xs shadow-lg">
+                        👤 {activeUsers[media.id]} is viewing
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Viewer Permissions Info */}
+          <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="card-glass p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+                <CheckCircleIcon className="w-5 h-5 text-blue-400" />
+                <span>What you can do:</span>
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3 text-blue-300">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span>View shared media content</span>
+                </div>
+                <div className="flex items-center space-x-3 text-blue-300">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span>See real-time annotations</span>
+                </div>
+                <div className="flex items-center space-x-3 text-blue-300">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span>Read comments and feedback</span>
+                </div>
+                <div className="flex items-center space-x-3 text-blue-300">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span>Watch collaboration in action</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="card-glass p-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+                <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
+                <span>What you cannot do:</span>
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3 text-red-300">
+                  <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                  <span>Upload new media</span>
+                </div>
+                <div className="flex items-center space-x-3 text-red-300">
+                  <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                  <span>Add comments or annotations</span>
+                </div>
+                <div className="flex items-center space-x-3 text-red-300">
+                  <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                  <span>Delete or modify content</span>
+                </div>
+                <div className="flex items-center space-x-3 text-red-300">
+                  <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                  <span>Edit media metadata</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Real-Time Collaboration Status */}
+          <div className="mt-6 card-glass p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+              <PlayIcon className="w-5 h-5 text-green-400" />
+              <span>🔄 Live Collaboration</span>
+            </h3>
+            <p className="text-white/70 mb-4">
+              You can see real-time annotations and comments being added by owners and reviewers. 
+              Watch the collaboration happen in real-time as teams work together on media content.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="flex items-center space-x-2 text-green-300">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span>Live annotations</span>
+              </div>
+              <div className="flex items-center space-x-2 text-blue-300">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                <span>Real-time comments</span>
+              </div>
+              <div className="flex items-center space-x-2 text-purple-300">
+                <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                <span>User activity</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

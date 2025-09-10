@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import MediaViewerClient from "@/components/MediaViewerClient";
 import LogoutButton from "@/components/LogoutButton";
+import UserInfo from "@/components/UserInfo";
 
-export default function ViewerMediaViewer() {
+export default function MediaViewerPage() {
   const { data: session, status } = useSession();
   const params = useParams();
-  const router = useRouter();
   const [media, setMedia] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -65,34 +65,37 @@ export default function ViewerMediaViewer() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-slate-800 text-white">
-      {/* Header with navigation */}
-      <div className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700/50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Link 
-                href="/dashboard/viewer"
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                ← Back to Dashboard
-              </Link>
-              <div>
-                <h1 className="text-xl font-semibold">{media.title}</h1>
-                <p className="text-sm text-gray-300">Viewer Mode - Read-only access</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="bg-gray-500 text-white px-3 py-1 rounded-full text-sm">
-                👁️ VIEWER
-              </div>
-              <LogoutButton />
-            </div>
-          </div>
+    <div className="relative">
+      {/* Header with Back Button, User Info, and Logout */}
+      <div className="absolute top-6 left-6 right-6 z-20 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Link
+            href="/dashboard/viewer"
+            className="bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-black/70 transition-colors flex items-center gap-2"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            Back to Dashboard
+          </Link>
+        </div>
+        <div className="flex items-center space-x-4">
+          <UserInfo />
+          <LogoutButton className="bg-black/50 backdrop-blur-sm hover:bg-black/70" />
         </div>
       </div>
-
-      {/* Media Viewer */}
+      
       <MediaViewerClient mediaId={params.mediaId} userRole="viewer" />
     </div>
   );
