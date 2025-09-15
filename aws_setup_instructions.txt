@@ -1,0 +1,1270 @@
+ubuntu@ip-172-31-12-226:~$ sudo docker stop keycloak-container
+keycloak-container
+ubuntu@ip-172-31-12-226:~$ sudo docker rm keycloak-container
+keycloak-container
+ubuntu@ip-172-31-12-226:~$ sudo docker run -d \
+  --name keycloak-container \
+  -p 8080:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  quay.io/keycloak/keycloak:24.0.3 \
+  start-dev
+9c24ce4f21b2a01bd8bdee9f6c2d97564047568858b266255846f0e896c84bb4
+ubuntu@ip-172-31-12-226:~$ sudo cat /etc/nginx/sites-available/default
+server {
+    listen 80;
+    server_name mykeycloakservice.duckdns.org;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name mykeycloakservice.duckdns.org;
+
+    ssl_certificate /etc/letsencrypt/live/mykeycloakservice.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mykeycloakservice.duckdns.org/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+ubuntu@ip-172-31-12-226:~$
+ubuntu@ip-172-31-12-226:~$ sudo nginx -t
+sudo systemctl reload nginx
+2025/08/07 11:46:33 [warn] 8912#8912: conflicting server name "mykeycloakservice.duckdns.org" on 0.0.0.0:80, ignored
+2025/08/07 11:46:33 [warn] 8912#8912: conflicting server name "mykeycloakservice.duckdns.org" on 0.0.0.0:443, ignored
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+ubuntu@ip-172-31-12-226:~$ docker logs -f keycloak-container
+Updating the configuration and installing your custom providers, if any. Please wait.
+2025-08-07 11:44:40,253 INFO  [io.qua.dep.QuarkusAugmentor] (main) Quarkus augmentation completed in 17165ms
+2025-08-07 11:44:44,772 WARN  [org.infinispan.CONFIG] (keycloak-cache-init) ISPN000569: Unable to persist Infinispan internal caches as no global state enabled
+2025-08-07 11:44:45,020 INFO  [org.infinispan.CONTAINER] (keycloak-cache-init) ISPN000556: Starting user marshaller 'org.infinispan.jboss.marshalling.core.JBossUserMarshaller'
+2025-08-07 11:44:45,406 INFO  [org.keycloak.quarkus.runtime.hostname.DefaultHostnameProvider] (main) Hostname settings: Base URL: <unset>, Hostname: <request>, Strict HTTPS: false, Path: <request>, Strict BackChannel: false, Admin URL: <unset>, Admin: <request>, Port: -1, Proxied: false
+2025-08-07 11:44:48,875 WARN  [io.quarkus.agroal.runtime.DataSources] (JPA Startup Thread) Datasource <default> enables XA but transaction recovery is not enabled. Please enable transaction recovery by setting quarkus.transaction-manager.enable-recovery=true, otherwise data may be lost if the application is terminated abruptly
+2025-08-07 11:44:51,791 INFO  [org.keycloak.quarkus.runtime.storage.legacy.liquibase.QuarkusJpaUpdaterProvider] (main) Initializing database schema. Using changelog META-INF/jpa-changelog-master.xml
+
+UPDATE SUMMARY
+Run:                        124
+Previously run:               0
+Filtered out:                 0
+-------------------------------
+Total change sets:          124
+
+2025-08-07 11:44:56,244 INFO  [org.keycloak.connections.infinispan.DefaultInfinispanConnectionProviderFactory] (main) Node name: node_401195, Site name: null
+2025-08-07 11:44:56,612 INFO  [org.keycloak.broker.provider.AbstractIdentityProviderMapper] (main) Registering class org.keycloak.broker.provider.mappersync.ConfigSyncEventListener
+2025-08-07 11:44:56,682 INFO  [org.keycloak.services] (main) KC-SERVICES0050: Initializing master realm
+2025-08-07 11:45:00,511 INFO  [io.quarkus] (main) Keycloak 24.0.3 on JVM (powered by Quarkus 3.8.3) started in 19.873s. Listening on: http://0.0.0.0:8080
+2025-08-07 11:45:00,512 INFO  [io.quarkus] (main) Profile dev activated.
+2025-08-07 11:45:00,512 INFO  [io.quarkus] (main) Installed features: [agroal, cdi, hibernate-orm, jdbc-h2, keycloak, logging-gelf, narayana-jta, reactive-routes, resteasy-reactive, resteasy-reactive-jackson, smallrye-context-propagation, vertx]
+2025-08-07 11:45:02,285 INFO  [org.keycloak.services] (main) KC-SERVICES0009: Added user 'admin' to realm 'master'
+2025-08-07 11:45:02,295 WARN  [org.keycloak.quarkus.runtime.KeycloakMain] (main) Running the server in development mode. DO NOT use this configuration in production.
+                        ^Ccontext canceled
+ubuntu@ip-172-31-12-226:~$ curl -i http://localhost:8080
+HTTP/1.1 302 Found
+Location: http://localhost:8080/admin/
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+content-length: 0
+
+ubuntu@ip-172-31-12-226:~$ sudo docker stop keycloak-container
+sudo docker rm keycloak-container
+keycloak-container
+keycloak-container
+ubuntu@ip-172-31-12-226:~$ sudo docker run -d \
+  --name keycloak-container \
+  -p 8080:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  quay.io/keycloak/keycloak:24.0.3 \
+  start-dev \
+  --hostname mykeycloakservice.duckdns.org \
+  --hostname-strict=false \
+  --proxy edge
+237d115ce9e395634610f3ad8f9bad83e831d482e50163f057cd4d550f35ab44
+ubuntu@ip-172-31-12-226:~$ sudo cat /etc/nginx/sites-available/mykeycloakservice
+server {
+    listen 80;
+    server_name mykeycloakservice.duckdns.org;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name mykeycloakservice.duckdns.org;
+
+    ssl_certificate /etc/letsencrypt/live/mykeycloakservice.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mykeycloakservice.duckdns.org/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+ubuntu@ip-172-31-12-226:~$ sudo nano /etc/nginx/sites-available/mykeycloakservice
+ubuntu@ip-172-31-12-226:~$ sudo nginx -t
+sudo systemctl reload nginx
+2025/08/07 11:55:50 [warn] 9382#9382: conflicting server name "mykeycloakservice.duckdns.org" on 0.0.0.0:80, ignored
+2025/08/07 11:55:50 [warn] 9382#9382: conflicting server name "mykeycloakservice.duckdns.org" on 0.0.0.0:443, ignored
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+
+
+
+
+
+
+Full keycloak Loading:
+C:\Users\vinay\OneDrive\Desktop\Demo_project>ssh -i keycloak-key.pem ubuntu@ec2-13-126-26-51.ap-south-1.compute.amazonaws.com
+Welcome to Ubuntu 24.04.2 LTS (GNU/Linux 6.8.0-1029-aws x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Fri Aug  8 01:57:30 UTC 2025
+
+  System load:  0.08              Temperature:           -273.1 C
+  Usage of /:   46.1% of 6.71GB   Processes:             118
+  Memory usage: 79%               Users logged in:       0
+  Swap usage:   0%                IPv4 address for ens5: 172.31.12.226
+
+
+Expanded Security Maintenance for Applications is not enabled.
+
+111 updates can be applied immediately.
+66 of these updates are standard security updates.
+To see these additional updates run: apt list --upgradable
+
+1 additional security update can be applied with ESM Apps.
+Learn more about enabling ESM Apps service at https://ubuntu.com/esm
+
+
+Last login: Thu Aug  7 16:58:21 2025 from 49.37.144.155
+ubuntu@ip-172-31-12-226:~$ docker start keycloak
+Error response from daemon: No such container: keycloak
+Error: failed to start containers: keycloak
+ubuntu@ip-172-31-12-226:~$ sudo docker stop keycloak-container
+keycloak-container
+ubuntu@ip-172-31-12-226:~$ sudo docker rm keycloak-container
+keycloak-container
+ubuntu@ip-172-31-12-226:~$ sudo docker run -d \
+  --name keycloak-container \
+  -p 8080:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  quay.io/keycloak/keycloak:24.0.3 \
+  start-dev
+2e4a8383083fcf47a3f436f35dc5ca49e9ed1fac01616b5a4963cb680343bf27
+ubuntu@ip-172-31-12-226:~$ sudo cat /etc/nginx/sites-available/default
+server {
+    listen 80;
+    server_name mykeycloakservice.duckdns.org;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name mykeycloakservice.duckdns.org;
+
+    ssl_certificate /etc/letsencrypt/live/mykeycloakservice.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mykeycloakservice.duckdns.org/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+ubuntu@ip-172-31-12-226:~$ sudo nginx -t
+2025/08/08 01:59:23 [warn] 13398#13398: conflicting server name "mykeycloakservice.duckdns.org" on 0.0.0.0:80, ignored
+2025/08/08 01:59:23 [warn] 13398#13398: conflicting server name "mykeycloakservice.duckdns.org" on 0.0.0.0:443, ignored
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+ubuntu@ip-172-31-12-226:~$ docker logs -f keycloak-container
+Updating the configuration and installing your custom providers, if any. Please wait.
+2025-08-08 01:59:21,507 INFO  [io.qua.dep.QuarkusAugmentor] (main) Quarkus augmentation completed in 15530ms
+2025-08-08 01:59:24,906 INFO  [org.keycloak.quarkus.runtime.hostname.DefaultHostnameProvider] (main) Hostname settings: Base URL: <unset>, Hostname: <request>, Strict HTTPS: false, Path: <request>, Strict BackChannel: false, Admin URL: <unset>, Admin: <request>, Port: -1, Proxied: false
+2025-08-08 01:59:25,858 WARN  [org.infinispan.CONFIG] (keycloak-cache-init) ISPN000569: Unable to persist Infinispan internal caches as no global state enabled
+2025-08-08 01:59:26,062 INFO  [org.infinispan.CONTAINER] (keycloak-cache-init) ISPN000556: Starting user marshaller 'org.infinispan.jboss.marshalling.core.JBossUserMarshaller'
+2025-08-08 01:59:29,671 WARN  [io.quarkus.agroal.runtime.DataSources] (JPA Startup Thread) Datasource <default> enables XA but transaction recovery is not enabled. Please enable transaction recovery by setting quarkus.transaction-manager.enable-recovery=true, otherwise data may be lost if the application is terminated abruptly
+2025-08-08 01:59:33,148 INFO  [org.keycloak.quarkus.runtime.storage.legacy.liquibase.QuarkusJpaUpdaterProvider] (main) Initializing database schema. Using changelog META-INF/jpa-changelog-master.xml
+
+UPDATE SUMMARY
+Run:                        124
+Previously run:               0
+Filtered out:                 0
+-------------------------------
+Total change sets:          124
+
+2025-08-08 01:59:37,647 INFO  [org.keycloak.connections.infinispan.DefaultInfinispanConnectionProviderFactory] (main) Node name: node_273246, Site name: null
+2025-08-08 01:59:38,175 INFO  [org.keycloak.broker.provider.AbstractIdentityProviderMapper] (main) Registering class org.keycloak.broker.provider.mappersync.ConfigSyncEventListener
+2025-08-08 01:59:38,289 INFO  [org.keycloak.services] (main) KC-SERVICES0050: Initializing master realm
+2025-08-08 01:59:41,590 INFO  [io.quarkus] (main) Keycloak 24.0.3 on JVM (powered by Quarkus 3.8.3) started in 19.720s. Listening on: http://0.0.0.0:8080
+2025-08-08 01:59:41,592 INFO  [io.quarkus] (main) Profile dev activated.
+2025-08-08 01:59:41,592 INFO  [io.quarkus] (main) Installed features: [agroal, cdi, hibernate-orm, jdbc-h2, keycloak, logging-gelf, narayana-jta, reactive-routes, resteasy-reactive, resteasy-reactive-jackson, smallrye-context-propagation, vertx]
+2025-08-08 01:59:42,970 INFO  [org.keycloak.services] (main) KC-SERVICES0009: Added user 'admin' to realm 'master'
+2025-08-08 01:59:42,976 WARN  [org.keycloak.quarkus.runtime.KeycloakMain] (main) Running the server in development mode. DO NOT use this configuration in production.
+^Ccontext canceled
+ubuntu@ip-172-31-12-226:~$ curl -i http://localhost:8080
+HTTP/1.1 302 Found
+Location: http://localhost:8080/admin/
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+content-length: 0
+
+ubuntu@ip-172-31-12-226:~$ sudo docker stop keycloak-container
+keycloak-container
+ubuntu@ip-172-31-12-226:~$ sudo docker rm keycloak-container
+keycloak-container
+ubuntu@ip-172-31-12-226:~$ sudo docker run -d \
+  --name keycloak-container \
+  -p 8080:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  quay.io/keycloak/keycloak:24.0.3 \
+  start-dev \
+  --hostname mykeycloakservice.duckdns.org \
+  --hostname-strict=false \
+  --proxy edge
+81d6d94a2bc97c47432d257ebe0d32da1723434dff49b6fb353426b5520750f2
+ubuntu@ip-172-31-12-226:~$ sudo cat /etc/nginx/sites-available/mykeycloakservice
+server {
+    listen 80;
+    server_name mykeycloakservice.duckdns.org;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name mykeycloakservice.duckdns.org;
+
+    ssl_certificate /etc/letsencrypt/live/mykeycloakservice.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mykeycloakservice.duckdns.org/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+ubuntu@ip-172-31-12-226:~$ sudo nano /etc/nginx/sites-available/mykeycloakservice
+ubuntu@ip-172-31-12-226:~$ sudo nginx -t
+2025/08/08 02:04:32 [warn] 13860#13860: conflicting server name "mykeycloakservice.duckdns.org" on 0.0.0.0:80, ignored
+2025/08/08 02:04:32 [warn] 13860#13860: conflicting server name "mykeycloakservice.duckdns.org" on 0.0.0.0:443, ignored
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+ubuntu@ip-172-31-12-226:~$ sudo systemctl reload nginx
+Warning: The unit file, source configuration file or drop-ins of nginx.service changed on disk. Run 'systemctl daemon-reload' to reload units.
+ubuntu@ip-172-31-12-226:~$
+
+
+
+
+
+
+
+nano file:
+server {
+    listen 80;
+    server_name mykeycloakservice.duckdns.org;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name mykeycloakservice.duckdns.org;
+
+    ssl_certificate /etc/letsencrypt/live/mykeycloakservice.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mykeycloakservice.duckdns.org/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+for running the server:
+
+
+C:\Users\vinay\OneDrive\Desktop\Demo_project>ssh -i keycloak-key.pem ubuntu@ec2-13-126-26-51.ap-south-1.compute.amazonaws.com
+Welcome to Ubuntu 24.04.2 LTS (GNU/Linux 6.8.0-1029-aws x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Fri Aug  8 01:57:30 UTC 2025
+
+  System load:  0.08              Temperature:           -273.1 C
+  Usage of /:   46.1% of 6.71GB   Processes:             118
+  Memory usage: 79%               Users logged in:       0
+  Swap usage:   0%                IPv4 address for ens5: 172.31.12.226
+
+
+Expanded Security Maintenance for Applications is not enabled.
+
+111 updates can be applied immediately.
+66 of these updates are standard security updates.
+To see these additional updates run: apt list --upgradable
+
+1 additional security update can be applied with ESM Apps.
+Learn more about enabling ESM Apps service at https://ubuntu.com/esm
+
+
+Last login: Thu Aug  7 16:58:21 2025 from 49.37.144.155
+ubuntu@ip-172-31-12-226:~$
+
+
+nanao docker-compose.yml:
+GNU nano 7.2        
+docker-compose.yml                                                                                           
+version: '3.9'
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.3
+    command:
+      - start
+      - --hostname=mykeycloakservice.duckdns.org
+      - --proxy=edge
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloakpass
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: adminpass
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    restart: always
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloakpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  postgres_data:
+
+
+
+
+
+
+
+File:
+const { exec } = require("child_process");
+const util = require("util");
+const execAsync = util.promisify(exec);
+const { logger } = require("../utils/logger");
+const { generatePortConfigurations } = require("../utils/portRangeUtils");
+const path = require("path");
+
+// Helm executable path for Windows
+const HELM_PATH = process.platform === 'win32' 
+  ? '"C:\\Program Files\\helm\\helm.exe"'
+  : 'helm';
+
+const chartPath = path.join(__dirname, "../../helm/vm-chart");
+
+const installApacheVM = async (vmName, namespace, customValues = {}) => {
+  try {
+    // Check for KUBECONFIG
+    if (!process.env.KUBECONFIG) {
+      throw new Error("KUBECONFIG environment variable is not set");
+    }
+
+    // Verify cluster access
+    try {
+      await execAsync("kubectl cluster-info");
+      logger.info("Message Flow [HELM] ✅ Kubernetes cluster is accessible");
+    } catch (error) {
+      throw new Error(`Cannot access Kubernetes cluster: ${error.message}`);
+    }
+    // No default ports - only use ports specified in request
+
+    // Only use ports specified in the request - no default ports
+    const servicePorts = {};
+    const serviceType = customValues.service?.type || "LoadBalancer";
+
+    // Build image configuration - HTTP URL only
+    const imageUrl =
+      customValues.image?.url ||
+      "http://nexus.dev.svc.cluster.local:8081/repository/vm-images-hosted/ubuntu-cloud-images/jammy-server-cloudimg-amd64.img";
+
+    // Debug logging
+    logger.info("Message Flow [HELM] 🖼️ Image configuration:", {
+      imageUrl,
+      customValuesImage: customValues.image,
+      envImageUrl: process.env.VM_IMAGE_URL,
+    });
+
+    // Process ports - expand ranges into individual port configurations
+    let expandedPorts = [];
+    if (customValues.service?.ports) {
+      try {
+        expandedPorts = generatePortConfigurations(
+          customValues.service.ports
+        );
+        logger.info("Message Flow [HELM] 🔗 Expanded ports:", {
+          original: customValues.service.ports,
+          expanded: expandedPorts,
+        });
+      } catch (error) {
+        logger.error(
+          "Message Flow [HELM] ❌ Error expanding ports:",
+          error
+        );
+        throw new Error(`Port configuration error: ${error.message}`);
+      }
+    }
+
+    const values = {
+      vm: {
+        image: {
+          // Use HTTP URL source
+          url: imageUrl,
+        },
+        resources: {
+          memory: customValues.memory || "2Gi",
+          cpu: customValues.cpu || 1,
+        },
+        storage: {
+          size: customValues.storage || "12Gi",
+          storageClass: "nfs-client",
+        },
+        credentials: {
+          username: customValues.credentials?.username || "ubuntu", // Use username from request or default to ubuntu
+          password: customValues.credentials?.password, // Use password from request only (no fallback)
+          sshKeyName: customValues.credentials?.sshKeyName, // Name of existing Kubernetes secret
+        },
+      },
+      service: {
+        type: serviceType,
+        // Add expanded ports (ranges converted to individual ports)
+        ports: expandedPorts,
+      },
+    };
+
+    // Username validation is handled at API level, just ensure it's set
+    values.vm.credentials.username = customValues.credentials.username;
+
+    if (customValues.credentials?.password) {
+      if (customValues.credentials.password.length > 1000) {
+        throw new Error("Password must be 1000 characters or less");
+      }
+      values.vm.credentials.password = customValues.credentials.password;
+    }
+    // No default password fallback - password is optional
+
+    // Handle SSH keys (only via Kubernetes secrets, no direct key injection)
+    values.vm.credentials.sshKeyName = customValues.credentials?.sshKeyName;
+    
+    
+    if (values.vm.credentials.sshKeyName) {
+      logger.info("Message Flow [HELM] 🔑 Existing SSH key configured:", {
+        sshKeyName: values.vm.credentials.sshKeyName,
+        hasExistingKey: true,
+      });
+    }
+
+    // Log the final values for debugging
+    logger.info("Message Flow [HELM] 📊 Final values:", {
+      vmImage: values.vm.image,
+      imageUrl,
+      credentials: values.vm.credentials,
+      customValuesCredentials: customValues.credentials,
+    });
+
+    // Log credentials status (without exposing the actual password)
+    logger.info("Message Flow [HELM] 🔐 Credentials status:", {
+      hasUsername: !!values.vm.credentials.username,
+      username: values.vm.credentials.username || "default",
+      hasPassword: !!values.vm.credentials.password,
+      passwordLength: values.vm.credentials.password
+        ? values.vm.credentials.password.length
+        : 0,
+    });
+
+    // Log SSH key status
+    logger.info("Message Flow [HELM] 🔑 SSH key status:", {
+      hasExistingSSHKey: !!values.vm.credentials.sshKeyName,
+      existingSSHKeyName: values.vm.credentials.sshKeyName,
+    });
+
+    // Log the chart path
+    logger.info("Message Flow [HELM] 📊 ", {
+      step: "preparing",
+      chartPath,
+      values,
+    });
+
+    // Check if chart exists
+    try {
+      await execAsync(`dir "${chartPath}\\Chart.yaml"`);
+    } catch (error) {
+      throw new Error(
+        `Helm chart not found at ${chartPath}. Error: ${error.message}`
+      );
+    }
+
+    // Convert values to YAML using yaml package
+    const yaml = require("js-yaml");
+    const valuesYaml = yaml.dump(values, {
+      lineWidth: -1, // Prevent line wrapping
+      quotingType: '"', // Use double quotes
+    });
+
+    // Install/upgrade the release with debug
+    // First verify the chart
+    const lintCmd = `${HELM_PATH} lint "${chartPath}"`;
+    logger.info("Message Flow [HELM] 🔍 Linting chart...");
+    const { stdout: lintOut, stderr: lintErr } = await execAsync(lintCmd);
+    logger.info("Helm lint result:", { lintOut, lintErr });
+
+    // Try template first to see what would be applied
+    const templateCmd = `${HELM_PATH} template ${vmName} "${chartPath}" --namespace ${namespace}`;
+    logger.info("Message Flow [HELM] 📋 Templating...");
+    const { stdout: templateOut } = await execAsync(templateCmd, {
+      input: valuesYaml,
+    });
+    logger.info("Helm template output:", templateOut);
+
+    // Now try the actual install without --wait first
+    // First check if KubeVirt CRDs are installed
+    try {
+      await execAsync("kubectl get virtualmachines.kubevirt.io");
+      logger.info("Message Flow [HELM] ✅ KubeVirt CRDs are installed");
+    } catch (error) {
+      throw new Error(
+        "KubeVirt CRDs are not installed. Please install KubeVirt first."
+      );
+    }
+
+    // Check if storage class exists
+    try {
+      await execAsync(`kubectl get storageclass nfs-client`);
+      logger.info("Message Flow [HELM] ✅ Storage class nfs-client exists");
+    } catch (error) {
+      throw new Error(
+        "Storage class nfs-client not found. Please create it first."
+      );
+    }
+
+    // Write values to a temporary file
+    const fs = require("fs");
+    const os = require("os");
+    const path = require("path");
+    const tempFile = path.join(
+      os.tmpdir(),
+      `values-${vmName}-${Date.now()}.yaml`
+    );
+
+    // Write values to temporary file
+    fs.writeFileSync(tempFile, valuesYaml, "utf8");
+
+    try {
+      // Run helm install with debug and save output
+      const cmd = `${HELM_PATH} upgrade --install ${vmName} "${chartPath}" \
+                    --namespace ${namespace} \
+                    --create-namespace \
+                    --values ${tempFile} \
+                    --debug`;
+
+      logger.info("Message Flow [HELM] 🎯 ", {
+        step: "dry-run",
+        command: cmd,
+        values: valuesYaml,
+      });
+
+      // Do the install
+      const { stdout, stderr } = await execAsync(cmd, {
+        timeout: 60000, // 60 second timeout
+      });
+
+      if (stderr) {
+        logger.warn("Helm command stderr:", stderr);
+      }
+
+      logger.info("Message Flow [HELM] 🚀 ", {
+        step: "executed",
+        vmName,
+        namespace,
+        command: "install",
+        status: "success",
+      });
+
+      // Build services object from the actual ports used
+      const services = {};
+      Object.entries(servicePorts).forEach(([name, config]) => {
+        services[name] = config.port;
+      });
+
+      // Add expanded ports if they exist
+      if (expandedPorts.length > 0) {
+        expandedPorts.forEach((port) => {
+          services[port.name] = port.port;
+        });
+      }
+
+      return {
+        success: true,
+        output: stdout,
+        vmName,
+        namespace,
+        services,
+      };
+    } catch (error) {
+      throw error;
+    } finally {
+      // Clean up temp file
+      try {
+        if (fs.existsSync(tempFile)) {
+          fs.unlinkSync(tempFile);
+        }
+      } catch (e) {
+        logger.warn("Failed to clean up temp file:", e);
+      }
+    }
+  } catch (error) {
+    logger.error(`Helm install failed for Apache VM ${vmName}:`, error);
+    throw error;
+  }
+};
+
+const uninstallVM = async (vmName, namespace) => {
+  try {
+    const cmd = `${HELM_PATH} uninstall ${vmName} --namespace ${namespace}`;
+    const { stdout, stderr } = await execAsync(cmd);
+
+    logger.info(`Helm uninstall successful for ${vmName}`);
+    return { success: true, output: stdout };
+  } catch (error) {
+    logger.error(`Helm uninstall failed for ${vmName}:`, error);
+    throw error;
+  }
+};
+
+const updateApacheVM = async (vmName, namespace, customValues = {}) => {
+  try {
+    // Check for KUBECONFIG
+    if (!process.env.KUBECONFIG) {
+      throw new Error("KUBECONFIG environment variable is not set");
+    }
+
+    // Verify cluster access
+    try {
+      await execAsync("kubectl cluster-info");
+      logger.info("Message Flow [HELM] ✅ Kubernetes cluster is accessible");
+    } catch (error) {
+      throw new Error(`Cannot access Kubernetes cluster: ${error.message}`);
+    }
+
+    // Get current values from existing release (use --all to get computed values)
+    let currentValues = {};
+    try {
+      const getValuesCmd = `helm get values ${vmName} --namespace ${namespace} --all`;
+      const { stdout: currentValuesOutput } = await execAsync(getValuesCmd);
+      currentValues = require("js-yaml").load(currentValuesOutput) || {};
+      logger.info(
+        "Message Flow [HELM] 📊 Retrieved current computed values:",
+        currentValues
+      );
+    } catch (error) {
+      logger.warn(
+        `Could not retrieve current values for ${vmName}:`,
+        error.message
+      );
+    }
+
+    // Build ACR image configuration for updates
+    const acrRegistryName = process.env.ACR_REGISTRY_NAME || "towercloud";
+    const acrImageName = process.env.ACR_IMAGE_NAME || "vm-images/ubuntu";
+    const acrImageTag = process.env.ACR_IMAGE_TAG || "22.04";
+    const acrSecretName = process.env.ACR_SECRET_NAME || "acr-secret";
+
+    // Merge current values with new values (partial update)
+    // Note: Only resources (memory/cpu), storage, and ports can be updated
+    // Images remain static from environment variables or current values
+    // Payload structure matches createApacheVM: customValues.memory, customValues.cpu, customValues.storage
+    const mergedValues = {
+      vm: {
+        ...currentValues.vm,
+        // Image configuration: Keep current image settings (no updates allowed)
+        image: currentValues.vm?.image || {
+          registry: `${acrRegistryName}.azurecr.io`,
+          repository: acrImageName,
+          tag: acrImageTag,
+          secretName: acrSecretName,
+        },
+        // Resources: Replace entirely if provided, otherwise keep current
+        resources: {
+          memory:
+            customValues.memory || currentValues.vm?.resources?.memory || "2Gi",
+          cpu: customValues.cpu || currentValues.vm?.resources?.cpu || 1,
+        },
+        // Storage: Replace entirely if provided, otherwise keep current
+        storage: {
+          size:
+            customValues.storage || currentValues.vm?.storage?.size || "12Gi",
+          storageClass: currentValues.vm?.storage?.storageClass || "nfs-client",
+        },
+      },
+      service: {
+        ...currentValues.service,
+        // Keep default ports unchanged (http/https)
+        // IMPORTANT: Set ports AFTER spreading currentValues.service to avoid overwrite
+        // Process and expand port ranges
+        // SAFE REPLACE: Merge new ports with existing non-conflicting ports
+        ports: (() => {
+          try {
+            // Get current ports from the VM
+            const currentPorts = currentValues.service?.ports || [];
+            const newPorts = customValues.service?.ports || [];
+
+            if (newPorts.length === 0) {
+              // No new ports requested, keep current ports
+              return currentPorts;
+            }
+
+            // SAFE REPLACE: Merge new ports with existing non-conflicting ports
+            // This prevents accidental port removal while allowing new ports to be added
+            // CRITICAL: Deduplicate ports by name to prevent Kubernetes service errors
+            const allPorts = [...currentPorts];
+
+            // CRITICAL: First, deduplicate existing ports to prevent Kubernetes errors
+            const seenNames = new Set();
+            const deduplicatedCurrentPorts = allPorts.filter((port) => {
+              if (!port.name) return true; // Keep ports without names
+
+              if (seenNames.has(port.name)) {
+                logger.warn(
+                  `Message Flow [HELM] ⚠️ Found duplicate port name '${port.name}' in existing ports, removing duplicate`
+                );
+                return false;
+              }
+
+              seenNames.add(port.name);
+              return true;
+            });
+
+            // Reset allPorts with deduplicated current ports
+            allPorts.length = 0;
+            allPorts.push(...deduplicatedCurrentPorts);
+
+            // Add new ports, but skip if name already exists
+            newPorts.forEach((newPort) => {
+              const existingPortIndex = allPorts.findIndex(
+                (existingPort) => existingPort.name === newPort.name
+              );
+
+              if (existingPortIndex === -1) {
+                // Port name doesn't exist, add it
+                allPorts.push(newPort);
+              } else {
+                // Port name exists, log warning and skip
+                logger.warn(
+                  `Message Flow [HELM] ⚠️ Port name '${newPort.name}' already exists, skipping duplicate`
+                );
+              }
+            });
+
+            logger.info(
+              "Message Flow [HELM] 🔗 SAFE REPLACE - Merging ports:",
+              {
+                currentPorts: currentPorts.length,
+                deduplicatedCurrentPorts: deduplicatedCurrentPorts.length,
+                newPorts: newPorts.length,
+                totalPorts: allPorts.length,
+                operation: "safe_replace_merge_deduplicated",
+              }
+            );
+
+            // Generate final port configurations from deduplicated array
+            return generatePortConfigurations(allPorts);
+          } catch (error) {
+            logger.error(
+              "Message Flow [HELM] ❌ Error in SAFE REPLACE port processing:",
+              error
+            );
+            throw new Error(`Port configuration error: ${error.message}`);
+          }
+        })(),
+      },
+    };
+
+    // Convert values to YAML
+    const yaml = require("js-yaml");
+    const valuesYaml = yaml.dump(mergedValues, {
+      lineWidth: -1,
+      quotingType: '"',
+    });
+
+    // Write values to a temporary file
+    const fs = require("fs");
+    const os = require("os");
+    const path = require("path");
+    const tempFile = path.join(
+      os.tmpdir(),
+      `update-values-${vmName}-${Date.now()}.yaml`
+    );
+
+    fs.writeFileSync(tempFile, valuesYaml, "utf8");
+
+    try {
+      // Run helm upgrade
+      const cmd = `${HELM_PATH} upgrade ${vmName} "${chartPath}" \
+                    --namespace ${namespace} \
+                    --values ${tempFile} \
+                    --debug`;
+
+      logger.info("Message Flow [HELM] 🔄 ", {
+        step: "updating",
+        vmName,
+        namespace,
+        command: cmd,
+      });
+
+      const { stdout, stderr } = await execAsync(cmd, {
+        timeout: 60000,
+      });
+
+      if (stderr) {
+        logger.warn("Helm command stderr:", stderr);
+      }
+
+      logger.info("Message Flow [HELM] ✅ ", {
+        step: "updated",
+        vmName,
+        namespace,
+        status: "success",
+      });
+
+      // Build services object from the actual ports used
+      const services = {};
+
+      // Add default ports (always present)
+      if (mergedValues.service?.ports) {
+        Object.entries(mergedValues.service.ports).forEach(([name, config]) => {
+          services[name] = config.port;
+        });
+      }
+
+      // Add ports if they exist
+      if (mergedValues.service?.ports) {
+        mergedValues.service.ports.forEach((port) => {
+          services[port.name] = port.port;
+        });
+      }
+
+      return {
+        success: true,
+        output: stdout,
+        vmName,
+        namespace,
+        services,
+        previousValues: currentValues,
+        newValues: mergedValues,
+      };
+    } catch (error) {
+      throw error;
+    } finally {
+      // Clean up temp file
+      try {
+        if (fs.existsSync(tempFile)) {
+          fs.unlinkSync(tempFile);
+        }
+      } catch (e) {
+        logger.warn("Failed to clean up temp file:", e);
+      }
+    }
+  } catch (error) {
+    logger.error(`Helm update failed for Apache VM ${vmName}:`, error);
+    throw error;
+  }
+};
+
+const getVMStatus = async (vmName, namespace) => {
+  try {
+    const cmd = `helm status ${vmName} --namespace ${namespace}`;
+    const { stdout } = await execAsync(cmd);
+
+    // Also get service details if VM is running
+    const svcCmd = `kubectl get svc -n ${namespace} -l "app=${vmName}" -o json`;
+    const { stdout: svcOutput } = await execAsync(svcCmd);
+    const services = JSON.parse(svcOutput);
+
+    return {
+      success: true,
+      status: stdout,
+      services: services.items.map((svc) => ({
+        name: svc.metadata.name,
+        type: svc.spec.type,
+        ports: svc.spec.ports,
+        ip: svc.status.loadBalancer?.ingress?.[0]?.ip,
+      })),
+    };
+  } catch (error) {
+    logger.error(`Helm status check failed for ${vmName}:`, error);
+    throw error;
+  }
+};
+
+const startVM = async (vmName, namespace) => {
+  try {
+    // Check for KUBECONFIG
+    if (!process.env.KUBECONFIG) {
+      throw new Error("KUBECONFIG environment variable is not set");
+    }
+
+    // Verify cluster access
+    try {
+      await execAsync("kubectl cluster-info");
+      logger.info("Message Flow [HELM] ✅ Kubernetes cluster is accessible");
+    } catch (error) {
+      throw new Error(`Cannot access Kubernetes cluster: ${error.message}`);
+    }
+
+    // Check if VM exists
+    try {
+      await execAsync(`helm status ${vmName} --namespace ${namespace}`);
+      logger.info("Message Flow [HELM] ✅ VM exists, proceeding with start");
+    } catch (error) {
+      throw new Error(
+        `VM ${vmName} not found in namespace ${namespace}: ${error.message}`
+      );
+    }
+
+    // Start VM using --reuse-values to preserve all existing configuration
+    const cmd = `helm upgrade ${vmName} "${chartPath}" \
+                  --namespace ${namespace} \
+                  --reuse-values \
+                  --set vm.runStrategy=Always \
+                  --debug`;
+
+    logger.info("Message Flow [HELM] 🚀 ", {
+      step: "starting",
+      vmName,
+      namespace,
+      command: cmd,
+    });
+
+    const { stdout, stderr } = await execAsync(cmd, {
+      timeout: 60000,
+    });
+
+    if (stderr) {
+      logger.warn("Helm command stderr:", stderr);
+    }
+
+    logger.info("Message Flow [HELM] ✅ ", {
+      step: "started",
+      vmName,
+      namespace,
+      status: "success",
+    });
+
+    return {
+      success: true,
+      output: stdout,
+      vmName,
+      namespace,
+      operation: "start",
+      runStrategy: "Always",
+    };
+  } catch (error) {
+    logger.error(`Helm start failed for VM ${vmName}:`, error);
+    throw error;
+  }
+};
+
+const stopVM = async (vmName, namespace) => {
+  try {
+    // Check for KUBECONFIG
+    if (!process.env.KUBECONFIG) {
+      throw new Error("KUBECONFIG environment variable is not set");
+    }
+
+    // Verify cluster access
+    try {
+      await execAsync("kubectl cluster-info");
+      logger.info("Message Flow [HELM] ✅ Kubernetes cluster is accessible");
+    } catch (error) {
+      throw new Error(`Cannot access Kubernetes cluster: ${error.message}`);
+    }
+
+    // Check if VM exists
+    try {
+      await execAsync(`helm status ${vmName} --namespace ${namespace}`);
+      logger.info("Message Flow [HELM] ✅ VM exists, proceeding with stop");
+    } catch (error) {
+      throw new Error(
+        `VM ${vmName} not found in namespace ${namespace}: ${error.message}`
+      );
+    }
+
+    // Stop VM using --reuse-values to preserve all existing configuration
+    const cmd = `helm upgrade ${vmName} "${chartPath}" \
+                  --namespace ${namespace} \
+                  --reuse-values \
+                  --set vm.runStrategy=Halted \
+                  --debug`;
+
+    logger.info("Message Flow [HELM] 🛑 ", {
+      step: "stopping",
+      vmName,
+      namespace,
+      command: cmd,
+    });
+
+    const { stdout, stderr } = await execAsync(cmd, {
+      timeout: 60000,
+    });
+
+    if (stderr) {
+      logger.warn("Helm command stderr:", stderr);
+    }
+
+    logger.info("Message Flow [HELM] ✅ ", {
+      step: "stopped",
+      vmName,
+      namespace,
+      status: "success",
+    });
+
+    return {
+      success: true,
+      output: stdout,
+      vmName,
+      namespace,
+      operation: "stop",
+      runStrategy: "Halted",
+    };
+  } catch (error) {
+    logger.error(`Helm stop failed for VM ${vmName}:`, error);
+    throw error;
+  }
+};
+
+// Namespace Management Functions
+
+const deleteNamespace = async (namespaceName, force = false) => {
+  try {
+    // Check for KUBECONFIG
+    if (!process.env.KUBECONFIG) {
+      throw new Error("KUBECONFIG environment variable is not set");
+    }
+
+    // Validate namespace name format
+    const namespaceNameRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+    if (!namespaceNameRegex.test(namespaceName)) {
+      throw new Error(
+        "Namespace name must be a valid DNS-1123 label (lowercase letters, numbers, hyphens only)"
+      );
+    }
+
+    // Prevent deletion of system namespaces
+    const protectedNamespaces = [
+      "default",
+      "kube-system",
+      "kube-public",
+      "kube-node-lease",
+    ];
+    if (protectedNamespaces.includes(namespaceName)) {
+      throw new Error(`Cannot delete protected namespace: ${namespaceName}`);
+    }
+
+    // Verify cluster access
+    try {
+      await execAsync("kubectl cluster-info");
+      logger.info(
+        "Message Flow [NAMESPACE] ✅ Kubernetes cluster is accessible"
+      );
+    } catch (error) {
+      throw new Error(`Cannot access Kubernetes cluster: ${error.message}`);
+    }
+
+    // Check if namespace exists
+    try {
+      await execAsync(`kubectl get namespace ${namespaceName}`);
+      logger.info(
+        `Message Flow [NAMESPACE] ✅ Namespace ${namespaceName} exists, proceeding with deletion`
+      );
+    } catch (error) {
+      logger.info(
+        `Message Flow [NAMESPACE] ⚠️ Namespace ${namespaceName} does not exist`
+      );
+      return {
+        success: true,
+        exists: false,
+        namespace: namespaceName,
+        message: `Namespace ${namespaceName} does not exist`,
+      };
+    }
+
+    // Check if namespace has resources (warn user)
+    try {
+      const { stdout: resourcesOutput } = await execAsync(
+        `kubectl get all -n ${namespaceName} --no-headers`,
+        { timeout: 10000 }
+      );
+
+      if (resourcesOutput.trim()) {
+        logger.warn(
+          `Message Flow [NAMESPACE] ⚠️ Namespace ${namespaceName} contains resources that will be deleted`
+        );
+      }
+    } catch (error) {
+      // No resources found or error checking resources
+      logger.info(
+        `Message Flow [NAMESPACE] ℹ️ No resources found in namespace ${namespaceName}`
+      );
+    }
+
+    // Build command with force flag if requested
+    const forceFlag = force ? "--force --grace-period=0" : "";
+    const cmd = `kubectl delete namespace ${namespaceName} ${forceFlag}`;
+
+    logger.info("Message Flow [NAMESPACE] 🗑️ ", {
+      step: "deleting",
+      namespace: namespaceName,
+      force,
+      command: cmd,
+    });
+
+    const { stdout, stderr } = await execAsync(cmd, {
+      timeout: 120000, // 2 minute timeout for deletion
+    });
+
+    if (stderr && !stderr.includes("deleted")) {
+      logger.warn("Namespace deletion stderr:", stderr);
+    }
+
+    logger.info("Message Flow [NAMESPACE] ✅ ", {
+      step: "deleted",
+      namespace: namespaceName,
+      status: "success",
+    });
+
+    return {
+      success: true,
+      exists: false,
+      namespace: namespaceName,
+      output: stdout,
+      force,
+    };
+  } catch (error) {
+    logger.error(`Namespace deletion failed for ${namespaceName}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Get external IP from Kubernetes service
+ * @param {string} serviceName - Name of the service
+ * @param {string} namespace - Kubernetes namespace
+ * @returns {Promise<string|null>} External IP address or null if not available
+ */
+const getServiceExternalIP = async (serviceName, namespace) => {
+  try {
+    logger.info(
+      `Getting external IP for service ${serviceName} in namespace ${namespace}`
+    );
+
+    const cmd = `kubectl get service ${serviceName} -n ${namespace} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`;
+    const { stdout } = await execAsync(cmd);
+
+    // If no IP, try to get hostname (for cloud load balancers)
+    if (!stdout || stdout.trim() === "") {
+      const hostnameCmd = `kubectl get service ${serviceName} -n ${namespace} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'`;
+      const { stdout: hostname } = await execAsync(hostnameCmd);
+
+      if (hostname && hostname.trim() !== "") {
+        const cleanHostname = hostname.trim().replace(/^['"]|['"]$/g, "");
+        logger.info(
+          `Service ${serviceName} has external hostname: ${cleanHostname}`
+        );
+        return cleanHostname;
+      }
+    } else {
+      const cleanIP = stdout.trim().replace(/^['"]|['"]$/g, "");
+      logger.info(`Service ${serviceName} has external IP: ${cleanIP}`);
+      return cleanIP;
+    }
+
+    logger.info(
+      `Service ${serviceName} does not have external IP/hostname yet`
+    );
+    return null;
+  } catch (error) {
+    logger.error(
+      `Failed to get external IP for service ${serviceName}:`,
+      error
+    );
+    return null;
+  }
+};
+
+module.exports = {
+  installApacheVM,
+  updateApacheVM,
+  uninstallVM,
+  getVMStatus,
+  startVM,
+  stopVM,
+  deleteNamespace,
+  getServiceExternalIP,
+};
