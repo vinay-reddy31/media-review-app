@@ -3,6 +3,14 @@
 A **full-stack web application** that allows users to review and rate media content (movies, series, etc.) with secure authentication via **Keycloak** and a **MongoDB** backend.
 This project is built with **Next.js** for the client and **Node.js/Express** for the server.
 
+## 🌐 Live Deployment
+
+| Service  | URL                                                  |
+| -------- | ---------------------------------------------------- |
+| Client   | https://media-review-app-beryl.vercel.app            |
+| Server   | https://media-server-z4t6.onrender.com               |
+| Keycloak | https://media-revieqw-app-keycloak.onrender.com      |
+
 ## 🚀 Features
 
 * 🔐 **Authentication** with Keycloak (OIDC protocol)
