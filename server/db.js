@@ -14,6 +14,11 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT,
     dialect: "postgres",
     logging: false,
+    // Cloud Postgres (Neon/Render/Supabase) requires SSL. Enable by setting DB_SSL=true.
+    // Local Docker Postgres leaves DB_SSL unset, so SSL stays off.
+    ...(process.env.DB_SSL === "true"
+      ? { dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }
+      : {}),
     // Do not set global underscored to avoid breaking existing tables.
   }
 );
